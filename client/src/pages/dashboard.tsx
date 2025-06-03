@@ -39,26 +39,28 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-background">
       <Sidebar />
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4">
+        <header className="bg-card border-b border-border px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-slate-800">Campaign Dashboard</h2>
-              <p className="text-slate-600 mt-1">Create and manage your AI voice calling campaigns</p>
+              <h2 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">
+                Campaign Dashboard
+              </h2>
+              <p className="text-muted-foreground mt-2">Create and manage your AI voice calling campaigns</p>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="icon" className="relative">
+              <Button variant="ghost" size="icon" className="relative hover:bg-accent">
                 <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
                   3
                 </span>
               </Button>
-              <Button onClick={handleCreateNewCampaign} className="bg-primary hover:bg-primary/90">
+              <Button onClick={handleCreateNewCampaign} className="bg-primary hover:bg-primary/90 shadow-lg">
                 <Plus className="h-4 w-4 mr-2" />
                 New Campaign
               </Button>
@@ -67,7 +69,7 @@ export default function Dashboard() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-8 bg-background">
           <div className="max-w-7xl mx-auto space-y-8">
             
             {/* Quick Stats */}
