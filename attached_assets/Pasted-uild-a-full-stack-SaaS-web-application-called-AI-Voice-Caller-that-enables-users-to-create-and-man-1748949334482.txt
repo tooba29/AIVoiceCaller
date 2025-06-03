@@ -1,0 +1,65 @@
+uild a full-stack SaaS web application called "AI Voice Caller" that enables users to create and manage AI-powered voice calling campaigns using Twilio for outbound calls and ElevenLabs for real-time voice generation.
+
+🔹 Core Features:
+
+Campaign dashboard to upload PDFs (knowledge base), configure AI prompts, and manage voice campaigns
+
+Integration with Twilio API for phone calls
+
+Integration with ElevenLabs Conversational AI WebSocket API (refer to official ElevenLabs documentation — do not hardcode or break these endpoints)
+
+CSV upload with leads (columns: first_name, last_name, contact_no)
+
+Test call with a single number
+
+Campaign execution that calls all CSV leads
+
+Option to clone a voice, preview the sample, and select a custom or built-in ElevenLabs voice
+
+🔹 Backend (Fastify):
+
+POST /upload-pdf → upload a PDF file and attach it to the agent's knowledge base
+
+POST /update-agent → set a new first prompt and system persona
+
+POST /make-outbound-call → call a single number using Twilio + ElevenLabs
+
+POST /start-campaign → batch call all leads from uploaded CSV
+
+GET /voices → fetch available ElevenLabs voices
+
+POST /clone-voice → upload voice sample for cloning (optional)
+
+Use dotenv for secrets, and formidable or multer for file uploads
+
+Store campaign state in memory or Replit DB
+
+🔹 Frontend (React + Tailwind):
+
+UI to:
+
+Upload a campaign PDF
+
+Input first prompt (e.g. "Hi, I'm Sarah from Mathify...")
+
+Input system prompt (e.g. "You are Sarah, a friendly sales rep...")
+
+Upload a CSV (columns: first_name, last_name, contact_no)
+
+Input a test number and trigger a call
+
+Start a campaign
+
+Select or clone a voice (upload sample, preview, choose)
+
+Optional: show campaign log view of call status
+
+⚠️ Important Notes:
+
+DO NOT hardcode ElevenLabs agent creation — the agent is already created and must only be updated
+
+Use ElevenLabs endpoints: /v1/convai/knowledge-base/upload and /v1/convai/agent/{agent_id}
+
+Refer to official documentation when implementing WebSocket and voice cloning logic
+
+Ensure all endpoints are securely connected to the frontend via API
