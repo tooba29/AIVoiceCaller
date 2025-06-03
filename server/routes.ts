@@ -5,6 +5,9 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import csv from "csv-parser";
+import twilio from "twilio";
+import FormData from "form-data";
+import fetch from "node-fetch";
 import { 
   insertCampaignSchema, 
   insertLeadSchema,
@@ -339,46 +342,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         twilioCallSid: null,
       });
 
-      // Make Twilio call if credentials are available
+      // Make Twilio call with actual integration
       const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
       const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
       const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+      const elevenLabsAgentId = process.env.ELEVENLABS_AGENT_ID;
 
-      if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+      if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber && elevenLabsAgentId) {
         try {
-          // Here you would use Twilio SDK to make the actual call
-          // For now, we'll simulate the call
+          const client = twilio(twilioAccountSid, twilioAuthToken);
+          
+          // Create TwiML with ElevenLabs webhook
+          const webhookUrl = `https://api.elevenlabs.io/v1/convai/agents/${elevenLabsAgentId}/phone`;
+          
+          const call = await client.calls.create({
+            to: phoneNumber,
+            from: twilioPhoneNumber,
+            url: webhookUrl,
+            method: 'POST',
+            statusCallback: `${req.protocol}://${req.get('host')}/api/twilio/status`,
+            statusCallbackMethod: 'POST',
+            statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
+          });
+
           await storage.updateCallLog(callLog.id, {
-            status: "completed",
-            duration: 120, // 2 minutes simulation
-            twilioCallSid: `CA${Date.now()}`,
+            status: "initiated",
+            twilioCallSid: call.sid,
           });
 
           res.json({ 
             success: true, 
-            callLog,
-            message: "Test call initiated successfully" 
+            callLog: { ...callLog, twilioCallSid: call.sid },
+            message: "Test call initiated successfully via Twilio + ElevenLabs" 
           });
         } catch (error) {
           console.error('Twilio call error:', error);
           await storage.updateCallLog(callLog.id, {
             status: "failed",
           });
-          res.status(500).json({ error: "Failed to make call via Twilio" });
+          res.status(500).json({ error: `Failed to make call via Twilio: ${error.message}` });
         }
       } else {
-        // Simulate call without Twilio
-        setTimeout(async () => {
-          await storage.updateCallLog(callLog.id, {
-            status: "completed",
-            duration: 90,
-          });
-        }, 3000);
+        // Return error if credentials are missing
+        await storage.updateCallLog(callLog.id, {
+          status: "failed",
+        });
+        
+        const missingCreds = [];
+        if (!twilioAccountSid) missingCreds.push("TWILIO_ACCOUNT_SID");
+        if (!twilioAuthToken) missingCreds.push("TWILIO_AUTH_TOKEN");
+        if (!twilioPhoneNumber) missingCreds.push("TWILIO_PHONE_NUMBER");
+        if (!elevenLabsAgentId) missingCreds.push("ELEVENLABS_AGENT_ID");
 
-        res.json({ 
-          success: true, 
-          callLog,
-          message: "Test call simulated (Twilio credentials not configured)" 
+        res.status(400).json({ 
+          error: `Missing required credentials: ${missingCreds.join(', ')}` 
         });
       }
     } catch (error) {
@@ -409,7 +426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateCampaign(campaignId, { status: "active" });
 
       // Start processing calls asynchronously
-      processCampaign(campaignId);
+      processCanpaign(campaignId);
 
       res.json({ 
         success: true, 
@@ -471,6 +488,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Knowledge base fetch error:', error);
       res.status(500).json({ error: "Failed to fetch knowledge base" });
+    }
+  });
+
+  // Twilio Status Webhook
+  app.post("/api/twilio/status", async (req, res) => {
+    try {
+      const { CallSid, CallStatus, CallDuration } = req.body;
+      
+      // Find call log by Twilio SID
+      const allCallLogs = await storage.getAllCallLogs();
+      const callLog = allCallLogs.find(log => log.twilioCallSid === CallSid);
+      
+      if (callLog) {
+        const updates: any = { status: CallStatus };
+        if (CallDuration) {
+          updates.duration = parseInt(CallDuration);
+        }
+        
+        await storage.updateCallLog(callLog.id, updates);
+        
+        // Update campaign stats if this was part of a campaign
+        if (callLog.campaignId && CallStatus === 'completed') {
+          const campaign = await storage.getCampaign(callLog.campaignId);
+          if (campaign) {
+            await storage.updateCampaign(callLog.campaignId, {
+              completedCalls: campaign.completedCalls + 1,
+              successfulCalls: campaign.successfulCalls + 1,
+            });
+          }
+        }
+      }
+      
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Twilio webhook error:', error);
+      res.status(500).send('Error');
     }
   });
 

@@ -44,6 +44,7 @@ export interface IStorage {
   // Call log operations
   createCallLog(callLog: InsertCallLog): Promise<CallLog>;
   getCallLogsByCampaign(campaignId: number): Promise<CallLog[]>;
+  getAllCallLogs(): Promise<CallLog[]>;
   updateCallLog(id: number, updates: Partial<CallLog>): Promise<CallLog | undefined>;
 }
 
@@ -217,6 +218,10 @@ export class MemStorage implements IStorage {
 
   async getCallLogsByCampaign(campaignId: number): Promise<CallLog[]> {
     return Array.from(this.callLogs.values()).filter(log => log.campaignId === campaignId);
+  }
+
+  async getAllCallLogs(): Promise<CallLog[]> {
+    return Array.from(this.callLogs.values());
   }
 
   async updateCallLog(id: number, updates: Partial<CallLog>): Promise<CallLog | undefined> {
