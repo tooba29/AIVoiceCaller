@@ -82,16 +82,16 @@ export default function ActiveCampaigns() {
   const activeCampaigns = campaigns.filter(c => c.status === "active" || c.status === "paused");
 
   return (
-    <Card className="border border-slate-200">
+    <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-5 w-5 text-indigo-600" />
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-md">
+              <BarChart3 className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-800">Active Campaigns</h3>
-              <p className="text-sm text-slate-600 font-normal">Monitor your running campaigns</p>
+              <h3 className="text-xl font-bold text-foreground">Active Campaigns</h3>
+              <p className="text-sm text-muted-foreground font-medium">Monitor your running campaigns</p>
             </div>
           </div>
           <Button

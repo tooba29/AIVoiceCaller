@@ -98,15 +98,15 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
   };
 
   return (
-    <Card className="border border-slate-200">
+    <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-            <Users className="h-5 w-5 text-orange-600" />
+        <CardTitle className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-md">
+            <Users className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-800">Lead Management</h3>
-            <p className="text-sm text-slate-600 font-normal">Upload and manage your calling lists</p>
+            <h3 className="text-xl font-bold text-foreground">Lead Management</h3>
+            <p className="text-sm text-muted-foreground font-medium">Upload and manage your calling lists</p>
           </div>
         </CardTitle>
       </CardHeader>
