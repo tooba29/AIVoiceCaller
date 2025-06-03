@@ -13,9 +13,9 @@ export default function Sidebar() {
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: BarChart3, current: location === "/" || location === "/dashboard" },
-    { name: "Campaigns", href: "/campaigns", icon: Megaphone, current: false },
-    { name: "Voice Library", href: "/voices", icon: MicOff, current: false },
-    { name: "Analytics", href: "/analytics", icon: TrendingUp, current: false },
+    { name: "Campaigns", href: "/campaigns", icon: Megaphone, current: location === "/campaigns" },
+    { name: "Voice Library", href: "/voices", icon: MicOff, current: location === "/voices" },
+    { name: "Analytics", href: "/analytics", icon: TrendingUp, current: location === "/analytics" },
   ];
 
   return (
