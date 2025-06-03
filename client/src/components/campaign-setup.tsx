@@ -138,24 +138,24 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
   return (
     <div className="space-y-6">
       {/* Knowledge Base Upload */}
-      <Card className="border border-slate-200">
+      <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <FileText className="h-5 w-5 text-blue-600" />
+          <CardTitle className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-md">
+              <FileText className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-800">Knowledge Base</h3>
-              <p className="text-sm text-slate-600 font-normal">Upload PDF files to train your AI agent</p>
+              <h3 className="text-xl font-bold text-foreground">Knowledge Base</h3>
+              <p className="text-sm text-muted-foreground font-medium">Upload PDF files to train your AI agent</p>
             </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+            className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300 cursor-pointer ${
               isDragging 
-                ? "border-primary bg-primary/5" 
-                : "border-slate-300 hover:border-primary/50"
+                ? "border-primary bg-primary/10 scale-105" 
+                : "border-border/50 hover:border-primary/50 hover:bg-accent/20"
             }`}
             onDrop={handleDrop}
             onDragOver={(e) => {

@@ -68,17 +68,17 @@ export default function StatsOverview() {
       {statCards.map((stat, index) => {
         const Icon = stat.icon;
         return (
-          <Card key={index} className="border border-slate-200">
+          <Card key={index} className="border border-border bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 shadow-lg hover:shadow-xl">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-slate-600">{stat.title}</p>
-                  <p className="text-2xl font-semibold text-slate-800 mt-1">
+                  <p className="text-sm text-muted-foreground font-medium">{stat.title}</p>
+                  <p className="text-3xl font-bold text-foreground mt-2 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text">
                     {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
                   </p>
                 </div>
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getColorClasses(stat.color)}`}>
-                  <Icon className="h-6 w-6" />
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-md transition-transform hover:scale-105 ${getColorClasses(stat.color)}`}>
+                  <Icon className="h-7 w-7" />
                 </div>
               </div>
             </CardContent>
