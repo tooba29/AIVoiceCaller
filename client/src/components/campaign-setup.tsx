@@ -209,15 +209,15 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
       </Card>
 
       {/* AI Prompt Configuration */}
-      <Card className="border border-slate-200">
+      <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Bot className="h-5 w-5 text-purple-600" />
+          <CardTitle className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-md">
+              <Bot className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-800">AI Configuration</h3>
-              <p className="text-sm text-slate-600 font-normal">Set up your AI agent's personality and behavior</p>
+              <h3 className="text-xl font-bold text-foreground">AI Configuration</h3>
+              <p className="text-sm text-muted-foreground font-medium">Set up your AI agent's personality and behavior</p>
             </div>
           </CardTitle>
         </CardHeader>

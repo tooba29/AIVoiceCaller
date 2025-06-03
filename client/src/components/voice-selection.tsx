@@ -138,41 +138,41 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   const voices = voicesData?.voices || [];
 
   return (
-    <Card className="border border-slate-200">
+    <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-            <MicOff className="h-5 w-5 text-green-600" />
+        <CardTitle className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-md">
+            <MicOff className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-800">Voice Selection</h3>
-            <p className="text-sm text-slate-600 font-normal">Choose or clone a voice for your campaigns</p>
+            <h3 className="text-xl font-bold text-foreground">Voice Selection</h3>
+            <p className="text-sm text-muted-foreground font-medium">Choose or clone a voice for your campaigns</p>
           </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
         {/* Voice Options Tabs */}
-        <div className="flex space-x-1 p-1 bg-slate-100 rounded-lg mb-6">
+        <div className="flex space-x-1 p-1 bg-accent/50 rounded-xl mb-6">
           <button
             onClick={() => setActiveTab("library")}
-            className={`flex-1 py-2 px-3 font-medium rounded-md transition-colors ${
+            className={`flex-1 py-3 px-4 font-medium rounded-lg transition-all duration-200 ${
               activeTab === "library"
-                ? "bg-white text-slate-700 shadow-sm"
-                : "text-slate-600 hover:bg-white"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
           >
-            <Users className="h-4 w-4 inline mr-1" />
+            <Users className="h-4 w-4 inline mr-2" />
             Voice Library
           </button>
           <button
             onClick={() => setActiveTab("clone")}
-            className={`flex-1 py-2 px-3 font-medium rounded-md transition-colors ${
+            className={`flex-1 py-3 px-4 font-medium rounded-lg transition-all duration-200 ${
               activeTab === "clone"
-                ? "bg-white text-slate-700 shadow-sm"
-                : "text-slate-600 hover:bg-white"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
           >
-            <Upload className="h-4 w-4 inline mr-1" />
+            <Upload className="h-4 w-4 inline mr-2" />
             Clone Voice
           </button>
         </div>

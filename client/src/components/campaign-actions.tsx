@@ -126,15 +126,15 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
   const isReadyToLaunch = campaign && selectedVoiceId && uploadedLeads.length > 0;
 
   return (
-    <Card className="border border-slate-200">
+    <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-            <Rocket className="h-5 w-5 text-emerald-600" />
+        <CardTitle className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center shadow-md">
+            <Rocket className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-800">Test & Launch</h3>
-            <p className="text-sm text-slate-600 font-normal">Test your configuration before launching the campaign</p>
+            <h3 className="text-xl font-bold text-foreground">Test & Launch</h3>
+            <p className="text-sm text-muted-foreground font-medium">Test your configuration before launching the campaign</p>
           </div>
         </CardTitle>
       </CardHeader>
