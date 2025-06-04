@@ -108,17 +108,7 @@ export const voiceCloneSchema = z.object({
 export type TestCallRequest = z.infer<typeof testCallSchema>;
 export type VoiceCloneRequest = z.infer<typeof voiceCloneSchema>;
 
-export interface Voice {
-  id: string;
-  name: string;
-  description: string;
-  isCloned: boolean;
-  sampleUrl?: string;
-  settings?: {
-    stability: number;
-    similarity_boost: number;
-    style: number;
-    use_speaker_boost: boolean;
-  };
-  category?: string;
-}
+// Deprecated: client-side typings are provided in `client/src/lib/api.ts`.
+// Keeping a duplicate `Voice` interface here caused a name clash with the
+// Drizzle generated `Voice` type above which broke `npm run check`. The
+// interface is no longer used and has been removed.

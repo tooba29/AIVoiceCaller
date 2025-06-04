@@ -73,13 +73,17 @@ export class MemStorage implements IStorage {
         description: "Professional Female",
         isCloned: false,
         sampleUrl: null,
+        settings: null,
+        category: null,
       },
       {
-        id: "voice_2", 
+        id: "voice_2",
         name: "Michael",
         description: "Friendly Male",
         isCloned: false,
         sampleUrl: null,
+        settings: null,
+        category: null,
       },
       {
         id: "voice_3",
@@ -87,7 +91,9 @@ export class MemStorage implements IStorage {
         description: "Warm Female",
         isCloned: false,
         sampleUrl: null,
-      }
+        settings: null,
+        category: null,
+      },
     ];
 
     defaultVoices.forEach(voice => this.voices.set(voice.id, voice));
@@ -99,6 +105,8 @@ export class MemStorage implements IStorage {
     const newCampaign: Campaign = {
       ...campaign,
       id,
+      status: campaign.status ?? "draft",
+      selectedVoiceId: campaign.selectedVoiceId ?? null,
       totalLeads: 0,
       completedCalls: 0,
       successfulCalls: 0,
@@ -168,8 +176,17 @@ export class MemStorage implements IStorage {
 
   // Voice operations
   async createVoice(voice: InsertVoice): Promise<Voice> {
-    this.voices.set(voice.id, voice);
-    return voice;
+    const newVoice: Voice = {
+      id: voice.id,
+      name: voice.name,
+      description: voice.description ?? null,
+      isCloned: voice.isCloned ?? null,
+      sampleUrl: voice.sampleUrl ?? null,
+      settings: voice.settings ?? null,
+      category: voice.category ?? null,
+    };
+    this.voices.set(newVoice.id, newVoice);
+    return newVoice;
   }
 
   async getAllVoices(): Promise<Voice[]> {
@@ -208,8 +225,13 @@ export class MemStorage implements IStorage {
   async createCallLog(callLog: InsertCallLog): Promise<CallLog> {
     const id = this.callLogIdCounter++;
     const newCallLog: CallLog = {
-      ...callLog,
       id,
+      campaignId: callLog.campaignId ?? null,
+      leadId: callLog.leadId ?? null,
+      phoneNumber: callLog.phoneNumber,
+      status: callLog.status,
+      duration: callLog.duration ?? null,
+      twilioCallSid: callLog.twilioCallSid ?? null,
       createdAt: new Date(),
     };
     this.callLogs.set(id, newCallLog);
