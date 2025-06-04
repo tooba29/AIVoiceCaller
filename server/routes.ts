@@ -171,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           console.log('ElevenLabs API response status:', response.status);
           if (response.ok) {
-            const data = await response.json();
+            const data: any = await response.json();
             console.log('ElevenLabs API response data:', JSON.stringify(data).slice(0, 200) + '...');
             elevenLabsVoices = data.voices?.map((voice: any) => ({
               id: voice.voice_id,
@@ -315,7 +315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Parse CSV file
       await new Promise<void>((resolve, reject) => {
-        fs.createReadStream(req.file.path)
+        fs.createReadStream(req.file!.path)
           .pipe(csv())
           .on('data', (row) => {
             // Validate required columns
@@ -422,7 +422,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateCallLog(callLog.id, {
             status: "failed",
           });
-          res.status(500).json({ error: `Failed to make call via Twilio: ${error.message}` });
+          const msg = error instanceof Error ? error.message : String(error);
+          res.status(500).json({ error: `Failed to make call via Twilio: ${msg}` });
         }
       } else {
         // Return error if credentials are missing
@@ -555,8 +556,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const campaign = await storage.getCampaign(callLog.campaignId);
           if (campaign) {
             await storage.updateCampaign(callLog.campaignId, {
-              completedCalls: campaign.completedCalls + 1,
-              successfulCalls: campaign.successfulCalls + 1,
+              completedCalls: (campaign.completedCalls || 0) + 1,
+              successfulCalls: (campaign.successfulCalls || 0) + 1,
             });
           }
         }
