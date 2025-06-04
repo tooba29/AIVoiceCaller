@@ -22,6 +22,13 @@ export interface Voice {
   description: string;
   isCloned: boolean;
   sampleUrl?: string;
+  settings?: {
+    stability: number;
+    similarity_boost: number;
+    style: number;
+    use_speaker_boost: boolean;
+  };
+  category?: string;
 }
 
 export interface Campaign {

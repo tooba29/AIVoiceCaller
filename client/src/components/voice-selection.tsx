@@ -54,23 +54,39 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
     },
   });
 
-  const handleVoicePreview = (voice: Voice) => {
+  const handleVoicePreview = async (voice: Voice) => {
     if (playingVoice === voice.id) {
       setPlayingVoice(null);
       return;
     }
 
+    if (!voice.sampleUrl) {
+      toast({
+        title: "Preview Unavailable",
+        description: "No preview available for this voice.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setPlayingVoice(voice.id);
     
-    // Simulate playing audio
-    setTimeout(() => {
+    try {
+      const audio = new Audio(voice.sampleUrl);
+      await audio.play();
+      
+      audio.onended = () => {
+        setPlayingVoice(null);
+      };
+    } catch (error) {
+      console.error('Error playing voice sample:', error);
+      toast({
+        title: "Preview Failed",
+        description: "Failed to play voice sample.",
+        variant: "destructive",
+      });
       setPlayingVoice(null);
-    }, 3000);
-
-    toast({
-      title: "Playing Voice Sample",
-      description: `Playing preview for ${voice.name}`,
-    });
+    }
   };
 
   const handleVoiceClone = (file: File) => {

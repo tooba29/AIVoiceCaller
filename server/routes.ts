@@ -16,6 +16,11 @@ import {
   type InsertLead 
 } from "@shared/schema";
 import { z } from "zod";
+import { Request } from 'express';
+
+interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
 
 // Configure multer for file uploads
 const upload = multer({
@@ -156,25 +161,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let elevenLabsVoices = [];
 
       if (elevenLabsApiKey) {
+        console.log('Attempting to fetch ElevenLabs voices with API key:', elevenLabsApiKey.slice(0, 5) + '...');
         try {
-          const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+          const response = await fetch('https://api.elevenlabs.io/v2/voices', {
             headers: {
               'xi-api-key': elevenLabsApiKey,
             },
           });
 
+          console.log('ElevenLabs API response status:', response.status);
           if (response.ok) {
             const data = await response.json();
+            console.log('ElevenLabs API response data:', JSON.stringify(data).slice(0, 200) + '...');
             elevenLabsVoices = data.voices?.map((voice: any) => ({
               id: voice.voice_id,
               name: voice.name,
-              description: voice.category || 'ElevenLabs Voice',
-              isCloned: false,
+              description: voice.labels?.accent || voice.labels?.description || 'ElevenLabs Voice',
+              isCloned: voice.category === 'cloned',
               sampleUrl: voice.preview_url,
+              settings: voice.settings,
+              category: voice.category
             })) || [];
+          } else {
+            console.error('ElevenLabs API error:', response.statusText);
+            throw new Error(`Failed to fetch voices: ${response.statusText}`);
           }
         } catch (error) {
           console.error('ElevenLabs voices fetch error:', error);
+          throw error;
         }
       }
 
@@ -183,12 +197,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ voices: allVoices });
     } catch (error) {
       console.error('Voices fetch error:', error);
-      res.status(500).json({ error: "Failed to fetch voices" });
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch voices" });
     }
   });
 
   // Clone Voice
-  app.post("/api/clone-voice", upload.single('audio'), async (req, res) => {
+  app.post("/api/clone-voice", upload.single('audio'), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No audio file uploaded" });
@@ -205,6 +219,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clone voice with ElevenLabs if API key is available
       const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
       let clonedVoiceId = `cloned_${Date.now()}`;
+      let previewUrl = null;
+      let voiceSettings = null;
 
       if (elevenLabsApiKey) {
         try {
@@ -217,7 +233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             formData.append('description', description);
           }
 
-          const response = await fetch('https://api.elevenlabs.io/v1/voices/add', {
+          const response = await fetch('https://api.elevenlabs.io/v2/voices/add', {
             method: 'POST',
             headers: {
               'xi-api-key': elevenLabsApiKey,
@@ -225,12 +241,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
             body: formData,
           });
 
-          if (response.ok) {
-            const result = await response.json();
-            clonedVoiceId = result.voice_id;
+          if (!response.ok) {
+            throw new Error(`ElevenLabs API error: ${response.statusText}`);
+          }
+
+          const result = await response.json() as { voice_id: string };
+          clonedVoiceId = result.voice_id;
+
+          // Fetch the newly created voice to get its preview URL and settings
+          const voiceResponse = await fetch(`https://api.elevenlabs.io/v2/voices/${clonedVoiceId}`, {
+            headers: {
+              'xi-api-key': elevenLabsApiKey,
+            },
+          });
+
+          if (voiceResponse.ok) {
+            const voiceData = await voiceResponse.json() as { 
+              preview_url: string;
+              settings: {
+                stability: number;
+                similarity_boost: number;
+                style: number;
+                use_speaker_boost: boolean;
+              };
+            };
+            previewUrl = voiceData.preview_url;
+            voiceSettings = voiceData.settings;
           }
         } catch (error) {
           console.error('ElevenLabs voice clone error:', error);
+          throw new Error(error instanceof Error ? error.message : 'Failed to clone voice with ElevenLabs');
         }
       }
 
@@ -240,7 +280,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name,
         description: description || 'Cloned Voice',
         isCloned: true,
-        sampleUrl: null,
+        sampleUrl: previewUrl,
+        settings: voiceSettings,
+        category: 'cloned'
       });
 
       // Clean up uploaded file
@@ -249,10 +291,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, voice });
     } catch (error) {
       console.error('Voice clone error:', error);
-      if (req.file) {
+      if (req.file?.path) {
         fs.unlinkSync(req.file.path);
       }
-      res.status(500).json({ error: "Failed to clone voice" });
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to clone voice" });
     }
   });
 

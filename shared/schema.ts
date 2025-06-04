@@ -33,6 +33,8 @@ export const voices = pgTable("voices", {
   description: text("description"),
   isCloned: boolean("is_cloned").default(false),
   sampleUrl: text("sample_url"),
+  settings: jsonb("settings"),
+  category: text("category"),
 });
 
 export const knowledgeBase = pgTable("knowledge_base", {
@@ -105,3 +107,18 @@ export const voiceCloneSchema = z.object({
 
 export type TestCallRequest = z.infer<typeof testCallSchema>;
 export type VoiceCloneRequest = z.infer<typeof voiceCloneSchema>;
+
+export interface Voice {
+  id: string;
+  name: string;
+  description: string;
+  isCloned: boolean;
+  sampleUrl?: string;
+  settings?: {
+    stability: number;
+    similarity_boost: number;
+    style: number;
+    use_speaker_boost: boolean;
+  };
+  category?: string;
+}
