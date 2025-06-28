@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MicOff, Play, Upload, Users } from "lucide-react";
+import { MicOff, Play, Pause, Upload, Users, RefreshCw } from "lucide-react";
 import { api, type Voice } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 
 interface VoiceSelectionProps {
   selectedVoiceId: string;
@@ -18,20 +19,42 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   const [cloneName, setCloneName] = useState("");
   const [cloneDescription, setCloneDescription] = useState("");
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Helper function to cleanup audio
+  const cleanupAudio = (audioToClean: HTMLAudioElement) => {
+    audioToClean.pause();
+    audioToClean.currentTime = 0;
+    audioToClean.src = '';
+    audioToClean.load();
+    setPlayingVoice(null);
+    setAudioElement(null);
+    setIsPlaying(false);
+  };
+
   // Get voices
-  const { data: voicesData, isLoading } = useQuery({
+  const { data: voicesData, isLoading, refetch } = useQuery({
     queryKey: ["/api/voices"],
     queryFn: () => api.getVoices(),
+    staleTime: 0, // Always refetch
+    cacheTime: 0, // Don't cache
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
 
   // Clone voice mutation
   const cloneVoiceMutation = useMutation({
     mutationFn: ({ file, data }: { file: File; data: { name: string; description?: string } }) =>
-      api.cloneVoice(file, data),
+      api.uploadVoiceSample(file, data.name, data.description),
     onSuccess: (data) => {
       toast({
         title: "Voice Cloned",
@@ -55,37 +78,186 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   });
 
   const handleVoicePreview = async (voice: Voice) => {
-    if (playingVoice === voice.id) {
-      setPlayingVoice(null);
-      return;
-    }
-
-    if (!voice.sampleUrl) {
-      toast({
-        title: "Preview Unavailable",
-        description: "No preview available for this voice.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setPlayingVoice(voice.id);
-    
     try {
-      const audio = new Audio(voice.sampleUrl);
-      await audio.play();
+      // If clicking the same voice that's currently playing
+      if (playingVoice === voice.id && audioElement) {
+        if (isPlaying) {
+          audioElement.pause();
+          setIsPlaying(false);
+        } else {
+          try {
+            await audioElement.play();
+            setIsPlaying(true);
+          } catch (error) {
+            console.error('Error resuming playback:', error);
+            cleanupAudio(audioElement);
+            toast({
+              title: "Playback Failed",
+              description: "Failed to resume playback. Please try again.",
+              variant: "destructive",
+            });
+          }
+        }
+        return;
+      }
+
+      // Stop current playback if any
+      if (audioElement) {
+        cleanupAudio(audioElement);
+      }
+
+      if (!voice.sampleUrl) {
+        toast({
+          title: "Preview Unavailable",
+          description: "No preview available for this voice.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create and set up new audio element
+      const audio = new Audio();
       
-      audio.onended = () => {
-        setPlayingVoice(null);
+      // Add loading state
+      const loadingToast = toast({
+        title: "Loading Preview",
+        description: "Preparing voice sample...",
+      });
+
+      let isLoading = true;
+      let hasError = false;
+
+      const cleanup = () => {
+        isLoading = false;
+        loadingToast.dismiss();
+        if (audio) {
+          cleanupAudio(audio);
+        }
       };
+
+      // Set up audio event handlers before setting the source
+      audio.addEventListener('canplaythrough', () => {
+        if (hasError || !isLoading) return;
+        isLoading = false;
+        loadingToast.dismiss();
+        setAudioElement(audio);
+        setPlayingVoice(voice.id);
+        setIsPlaying(true);
+        audio.play().catch((error) => {
+          if (hasError) return;
+          hasError = true;
+          console.error('Error playing audio:', error);
+          cleanupAudio(audio);
+          toast({
+            title: "Preview Failed",
+            description: "Failed to play voice sample. Please try again.",
+            variant: "destructive",
+          });
+        });
+      }, { once: true });
+      
+      audio.addEventListener('ended', () => {
+        cleanupAudio(audio);
+      }, { once: true });
+
+      audio.addEventListener('pause', () => {
+        setIsPlaying(false);
+      });
+
+      audio.addEventListener('play', () => {
+        setIsPlaying(true);
+      });
+
+      audio.addEventListener('error', (e) => {
+        if (hasError) return;
+        hasError = true;
+        
+        // Only log error if it's not due to cleanup
+        if (isLoading) {
+          console.error('Audio error:', e);
+        }
+        
+        cleanup();
+        
+        if (isLoading) {
+          let errorMessage = "Failed to load voice sample.";
+          if (audio.error) {
+            switch (audio.error.code) {
+              case MediaError.MEDIA_ERR_ABORTED:
+                errorMessage = "Audio playback was aborted.";
+                break;
+              case MediaError.MEDIA_ERR_NETWORK:
+                errorMessage = "Network error occurred while loading the audio.";
+                break;
+              case MediaError.MEDIA_ERR_DECODE:
+                errorMessage = "Audio decoding error occurred.";
+                break;
+              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = "Audio format is not supported.";
+                break;
+            }
+          }
+          
+          toast({
+            title: "Preview Failed",
+            description: errorMessage + " Please try again.",
+            variant: "destructive",
+          });
+        }
+      }, { once: true });
+
+      // Set CORS mode
+      audio.crossOrigin = "anonymous";
+      
+      // Set the source and load the audio
+      const proxyUrl = `/api/voice-preview/${voice.id}`;
+      
+      // Set up timeout to prevent hanging
+      const timeoutId = setTimeout(() => {
+        if (isLoading && !hasError) {
+          hasError = true;
+          cleanup();
+          toast({
+            title: "Preview Failed",
+            description: "Loading took too long. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }, 10000); // 10 second timeout
+
+      try {
+        // Preload the audio to check if the URL is valid
+        const response = await fetch(proxyUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          throw new Error('Failed to load audio preview');
+        }
+
+        audio.src = proxyUrl;
+        await audio.load();
+      } catch (error) {
+        if (hasError) return;
+        hasError = true;
+        console.error('Error loading audio:', error);
+        cleanup();
+        toast({
+          title: "Preview Failed",
+          description: "Failed to load voice sample. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
     } catch (error) {
-      console.error('Error playing voice sample:', error);
+      console.error('Error setting up audio:', error);
+      setPlayingVoice(null);
+      setAudioElement(null);
+      setIsPlaying(false);
       toast({
         title: "Preview Failed",
-        description: "Failed to play voice sample.",
+        description: "Failed to set up voice preview. Please try again.",
         variant: "destructive",
       });
-      setPlayingVoice(null);
     }
   };
 
@@ -152,18 +324,37 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   }
 
   const voices = voicesData?.voices || [];
+  
+  // Debug: Check if voices are loaded
+  if (voices.length > 0) {
+    console.log('Voice selection: Found', voices.length, 'voices');
+  } else {
+    console.log('Voice selection: No voices found, isLoading:', isLoading, 'voicesData:', voicesData);
+  }
 
   return (
     <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-md">
-            <MicOff className="h-6 w-6 text-white" />
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-md">
+              <MicOff className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-foreground">Voice Selection</h3>
+              <p className="text-sm text-muted-foreground font-medium">Choose or clone a voice for your campaigns</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-foreground">Voice Selection</h3>
-            <p className="text-sm text-muted-foreground font-medium">Choose or clone a voice for your campaigns</p>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="border-slate-300 text-slate-700 hover:bg-slate-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -195,101 +386,106 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
 
         {/* Voice Library */}
         {activeTab === "library" && (
-          <div className="space-y-3">
-            {voices.map((voice) => (
+          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {voices.map((voice: any) => (
               <div
                 key={voice.id}
-                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                className={`p-4 border rounded-lg transition-all duration-200 ${
                   selectedVoiceId === voice.id
                     ? "border-primary bg-primary/5"
-                    : "border-slate-200 hover:border-primary/30"
+                    : "border-border hover:border-primary/50"
                 }`}
-                onClick={() => onVoiceSelect(voice.id)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center">
-                      <MicOff className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-800">{voice.name}</p>
-                      <p className="text-sm text-slate-500">{voice.description}</p>
-                    </div>
-                    {voice.isCloned && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
-                        Cloned
-                      </span>
-                    )}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1 cursor-pointer" onClick={() => onVoiceSelect(voice.id)}>
+                    <h4 className="font-medium text-foreground">{voice.name}</h4>
+                    <p className="text-sm text-muted-foreground">{voice.description}</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleVoicePreview(voice);
-                      }}
-                      disabled={playingVoice !== null}
+                    <Badge
+                      variant="secondary"
+                      className={
+                        voice.category === "premade"
+                          ? "bg-blue-100 text-blue-700"
+                          : voice.category === "cloned"
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-green-100 text-green-700"
+                      }
                     >
-                      {playingVoice === voice.id ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <input
-                      type="radio"
-                      name="selectedVoice"
-                      checked={selectedVoiceId === voice.id}
-                      onChange={() => onVoiceSelect(voice.id)}
-                      className="text-primary"
-                    />
+                      {voice.category}
+                    </Badge>
+                    {voice.sampleUrl && (
+                      <Button
+                        size="sm"
+                        variant={playingVoice === voice.id ? "default" : "ghost"}
+                        className={`w-8 h-8 p-0 ${
+                          playingVoice === voice.id 
+                            ? "bg-primary hover:bg-primary/90" 
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleVoicePreview(voice);
+                        }}
+                      >
+                        {playingVoice === voice.id ? (
+                          isPlaying ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
+                {selectedVoiceId === voice.id && (
+                  <div className="mt-2 pt-2 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground">Selected for campaign</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        {/* Voice Cloning */}
+        {/* Clone Voice Form */}
         {activeTab === "clone" && (
           <div className="space-y-4">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="voice-name">Voice Name</Label>
-                <Input
-                  id="voice-name"
-                  value={cloneName}
-                  onChange={(e) => setCloneName(e.target.value)}
-                  placeholder="Enter voice name..."
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="voice-description">Description (Optional)</Label>
-                <Input
-                  id="voice-description"
-                  value={cloneDescription}
-                  onChange={(e) => setCloneDescription(e.target.value)}
-                  placeholder="Describe the voice..."
-                  className="mt-1"
-                />
-              </div>
+            <div>
+              <Label htmlFor="voice-name">Voice Name</Label>
+              <Input
+                id="voice-name"
+                value={cloneName}
+                onChange={(e) => setCloneName(e.target.value)}
+                placeholder="e.g., Sales Agent Voice"
+                className="mt-1.5"
+              />
             </div>
-
+            <div>
+              <Label htmlFor="voice-description">Description (Optional)</Label>
+              <Input
+                id="voice-description"
+                value={cloneDescription}
+                onChange={(e) => setCloneDescription(e.target.value)}
+                placeholder="e.g., Professional and friendly sales voice"
+                className="mt-1.5"
+              />
+            </div>
             <div
-              className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
               onClick={() => document.getElementById('voice-upload')?.click()}
             >
-              <MicOff className="h-8 w-8 text-slate-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-slate-600 mb-2">Upload Voice Sample</p>
-              <p className="text-xs text-slate-500 mb-3">MP3, WAV files (min 30 seconds)</p>
+              <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
+              <p className="text-sm font-medium text-foreground mb-2">Upload Voice Sample</p>
+              <p className="text-xs text-muted-foreground mb-4">MP3 or WAV file, max 50MB</p>
               <Button
-                variant="default"
+                variant="secondary"
                 disabled={cloneVoiceMutation.isPending}
-                className="bg-primary hover:bg-primary/90"
               >
-                {cloneVoiceMutation.isPending ? "Cloning..." : "Choose Audio File"}
+                {cloneVoiceMutation.isPending ? "Uploading..." : "Choose File"}
               </Button>
               <input
                 id="voice-upload"

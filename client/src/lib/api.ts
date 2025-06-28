@@ -7,12 +7,20 @@ export interface CampaignStats {
   totalMinutes: number;
 }
 
+export interface DashboardAnalytics {
+  charts: {
+    name: string;
+    type: string;
+    data: any;
+  }[];
+}
+
 export interface FileUploadResponse {
   success: boolean;
-  knowledgeBase?: any;
+  voice?: Voice;
+  error?: string;
   leadsCount?: number;
   leads?: any[];
-  voice?: any;
   message?: string;
 }
 
@@ -28,7 +36,7 @@ export interface Voice {
     style: number;
     use_speaker_boost: boolean;
   };
-  category?: string;
+  category?: 'premade' | 'cloned' | 'generated';
 }
 
 export interface Campaign {
@@ -42,6 +50,9 @@ export interface Campaign {
   completedCalls: number;
   successfulCalls: number;
   failedCalls: number;
+  pendingLeads?: number;
+  callingLeads?: number;
+  averageDuration?: number;
   createdAt: string;
 }
 
@@ -56,123 +67,295 @@ export interface Lead {
   createdAt: string;
 }
 
+export interface DashboardChart {
+  name: string;
+  type: string;
+}
+
+export interface UpdateDashboardRequest {
+  charts: DashboardChart[];
+}
+
+const BASE_URL = '';  // Use relative URLs since we're on the same domain
+
+async function handleResponse(response: Response) {
+  const data = await response.json();
+  if (!response.ok) {
+    // Handle authentication errors
+    if (response.status === 401) {
+      // Let the AuthProvider handle the 401 by reloading
+      window.location.reload();
+      return;
+    }
+    throw new Error(data.error || 'API request failed');
+  }
+  return data;
+}
+
 export const api = {
-  // PDF Knowledge Base Upload
-  uploadPDF: async (file: File): Promise<FileUploadResponse> => {
+  // GET requests
+  getCampaigns: () => 
+    fetch(`${BASE_URL}/api/campaigns`, {
+      credentials: 'include'
+    }).then(handleResponse),
+  
+  getVoices: () => 
+    fetch(`${BASE_URL}/api/voices`, {
+      credentials: 'include'
+    }).then(handleResponse),
+  
+  getKnowledgeBase: () => 
+    fetch(`${BASE_URL}/api/knowledge-base`, {
+      credentials: 'include'
+    }).then(handleResponse),
+
+  // POST requests
+  post: async (endpoint: string, data: any) => {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // File upload requests
+  uploadPDF: async (file: File, campaignId: string) => {
     const formData = new FormData();
     formData.append('pdf', file);
-    
-    const response = await fetch('/api/upload-pdf', {
+    formData.append('campaignId', campaignId);
+
+    const response = await fetch(`${BASE_URL}/api/upload-pdf`, {
       method: 'POST',
-      body: formData,
       credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload PDF');
-    }
-    
-    return response.json();
-  },
-
-  // Update Agent Configuration
-  updateAgent: async (data: {
-    firstPrompt: string;
-    systemPersona: string;
-    campaignId?: number;
-  }) => {
-    const response = await apiRequest('POST', '/api/update-agent', data);
-    return response.json();
-  },
-
-  // Get Available Voices
-  getVoices: async (): Promise<{ voices: Voice[] }> => {
-    const response = await apiRequest('GET', '/api/voices');
-    return response.json();
-  },
-
-  // Clone Voice
-  cloneVoice: async (file: File, data: { name: string; description?: string }): Promise<FileUploadResponse> => {
-    const formData = new FormData();
-    formData.append('audio', file);
-    formData.append('name', data.name);
-    if (data.description) {
-      formData.append('description', data.description);
-    }
-    
-    const response = await fetch('/api/clone-voice', {
-      method: 'POST',
       body: formData,
-      credentials: 'include',
     });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to clone voice');
-    }
-    
-    return response.json();
+    return handleResponse(response);
   },
 
-  // Upload CSV Leads
-  uploadCSV: async (file: File, campaignId: number): Promise<FileUploadResponse> => {
+  uploadCSV: async (file: File, campaignId: string) => {
     const formData = new FormData();
     formData.append('csv', file);
-    formData.append('campaignId', campaignId.toString());
-    
-    const response = await fetch('/api/upload-csv', {
+    formData.append('campaignId', campaignId);
+
+    const response = await fetch(`${BASE_URL}/api/upload-csv`, {
       method: 'POST',
-      body: formData,
       credentials: 'include',
+      body: formData,
     });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload CSV');
+    return handleResponse(response);
+  },
+
+  uploadVoiceSample: async (file: File, name: string, description?: string) => {
+    const formData = new FormData();
+    formData.append('audio', file);
+    formData.append('name', name);
+    if (description) {
+      formData.append('description', description);
     }
-    
-    return response.json();
+
+    const response = await fetch(`${BASE_URL}/api/clone-voice`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    return handleResponse(response);
   },
 
-  // Make Test Call
-  makeTestCall: async (data: { phoneNumber: string; campaignId?: number }) => {
-    const response = await apiRequest('POST', '/api/make-outbound-call', data);
-    return response.json();
+  // Campaign actions
+  updateAgent: async (data: any) => {
+    const response = await fetch(`${BASE_URL}/api/update-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
   },
 
-  // Start Campaign
+  makeTestCall: async (data: { phoneNumber: string; campaignId?: number; firstName?: string }) => {
+    const response = await fetch(`${BASE_URL}/api/make-outbound-call`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
   startCampaign: async (campaignId: number) => {
-    const response = await apiRequest('POST', '/api/start-campaign', { campaignId });
-    return response.json();
+    const response = await fetch(`${BASE_URL}/api/start-campaign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ campaignId }),
+    });
+    return handleResponse(response);
   },
 
-  // Get Campaigns
-  getCampaigns: async (): Promise<{ campaigns: Campaign[] }> => {
-    const response = await apiRequest('GET', '/api/campaigns');
-    return response.json();
-  },
-
-  // Get Campaign Details
-  getCampaignDetails: async (id: number) => {
-    const response = await apiRequest('GET', `/api/campaigns/${id}`);
-    return response.json();
-  },
-
-  // Get Knowledge Base
-  getKnowledgeBase: async () => {
-    const response = await apiRequest('GET', '/api/knowledge-base');
-    return response.json();
-  },
-
-  // Mock stats for dashboard
+  // Replace the mock getStats with real analytics
   getStats: async (): Promise<CampaignStats> => {
-    // This would typically come from a real endpoint
-    return {
-      activeCampaigns: 12,
-      callsToday: 1247,
-      successRate: "78.5%",
-      totalMinutes: 2856,
-    };
+    try {
+      const response = await fetch(`${BASE_URL}/api/analytics/dashboard`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch analytics');
+      }
+
+      const data: DashboardAnalytics = await response.json();
+      
+      // Extract values from the ElevenLabs response
+      const stats: CampaignStats = {
+        activeCampaigns: 0,
+        callsToday: 0,
+        successRate: "0%",
+        totalMinutes: 0
+      };
+
+      data.charts.forEach(chart => {
+        switch (chart.name) {
+          case "active_campaigns":
+            stats.activeCampaigns = parseInt(chart.data) || 0;
+            break;
+          case "calls_today":
+            stats.callsToday = parseInt(chart.data) || 0;
+            break;
+          case "success_rate":
+            stats.successRate = typeof chart.data === 'number' 
+              ? `${Math.round(chart.data * 100)}%` 
+              : '0%';
+            break;
+          case "total_minutes":
+            stats.totalMinutes = parseInt(chart.data) || 0;
+            break;
+        }
+      });
+
+      return stats;
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+      // Return zeros if the API call fails
+      return {
+        activeCampaigns: 0,
+        callsToday: 0,
+        successRate: "0%",
+        totalMinutes: 0
+      };
+    }
+  },
+
+  updateCampaign: async (campaignId: number, updates: {
+    name?: string;
+    status?: string;
+    firstPrompt?: string;
+    systemPersona?: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(updates),
+    });
+    return handleResponse(response);
+  },
+
+  deleteCampaign: async (campaignId: number) => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(errorData.error || 'Failed to delete campaign');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to delete campaign');
+    }
+  },
+
+  // Add updateDashboardSettings method
+  updateDashboardSettings: async (settings: UpdateDashboardRequest) => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/analytics/dashboard/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update dashboard settings');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to update dashboard settings');
+    }
+  },
+
+  deleteKnowledgeBase: async (id: number, campaignId: number) => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/knowledge-base/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ campaignId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete knowledge base file');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to delete knowledge base file');
+    }
+  },
+
+  deleteLeads: async (campaignId: number) => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/leads`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete leads');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to delete leads');
+    }
   },
 };

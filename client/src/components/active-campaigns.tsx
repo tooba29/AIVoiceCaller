@@ -14,7 +14,7 @@ export default function ActiveCampaigns() {
   const { data: campaignsData, isLoading, refetch } = useQuery({
     queryKey: ["/api/campaigns"],
     queryFn: () => api.getCampaigns(),
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time updates
+    refetchInterval: 3000, // Refresh every 3 seconds for real-time updates
   });
 
   const handleRefresh = async () => {
@@ -49,8 +49,19 @@ export default function ActiveCampaigns() {
   };
 
   const getAverageDuration = (campaign: Campaign) => {
-    // Mock average duration calculation
-    return "2.4m";
+    if (!campaign.averageDuration || campaign.averageDuration === 0) {
+      return "0m";
+    }
+    
+    // Convert seconds to minutes and seconds
+    const minutes = Math.floor(campaign.averageDuration / 60);
+    const seconds = campaign.averageDuration % 60;
+    
+    if (minutes > 0) {
+      return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+    } else {
+      return `${seconds}s`;
+    }
   };
 
   if (isLoading) {
@@ -79,7 +90,7 @@ export default function ActiveCampaigns() {
   }
 
   const campaigns = campaignsData?.campaigns || [];
-  const activeCampaigns = campaigns.filter(c => c.status === "active" || c.status === "paused");
+  const activeCampaigns = campaigns.filter((c: Campaign) => c.status === "active" || c.status === "paused");
 
   return (
     <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
@@ -114,7 +125,7 @@ export default function ActiveCampaigns() {
           </div>
         ) : (
           <div className="space-y-4">
-            {activeCampaigns.map((campaign) => (
+            {activeCampaigns.map((campaign: Campaign) => (
               <div key={campaign.id} className="border border-slate-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">
@@ -172,7 +183,10 @@ export default function ActiveCampaigns() {
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-slate-800">
-                      {campaign.totalLeads - campaign.completedCalls}
+                      {campaign.pendingLeads !== undefined 
+                        ? campaign.pendingLeads + (campaign.callingLeads || 0)
+                        : Math.max(0, campaign.totalLeads - campaign.completedCalls)
+                      }
                     </p>
                     <p className="text-xs text-yellow-600">Pending</p>
                   </div>

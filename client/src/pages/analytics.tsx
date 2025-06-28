@@ -19,10 +19,10 @@ export default function Analytics() {
 
   // Calculate analytics data
   const totalCampaigns = campaigns.length;
-  const activeCampaigns = campaigns.filter(c => c.status === "active").length;
-  const totalCalls = campaigns.reduce((sum, c) => sum + (c.completedCalls || 0), 0);
-  const successfulCalls = campaigns.reduce((sum, c) => sum + (c.successfulCalls || 0), 0);
-  const failedCalls = campaigns.reduce((sum, c) => sum + (c.failedCalls || 0), 0);
+  const activeCampaigns = campaigns.filter((c: any) => c.status === "active").length;
+  const totalCalls = campaigns.reduce((sum: number, c: any) => sum + (c.completedCalls || 0), 0);
+  const successfulCalls = campaigns.reduce((sum: number, c: any) => sum + (c.successfulCalls || 0), 0);
+  const failedCalls = campaigns.reduce((sum: number, c: any) => sum + (c.failedCalls || 0), 0);
   const successRate = totalCalls > 0 ? ((successfulCalls / totalCalls) * 100).toFixed(1) : "0";
 
   const analyticsCards = [
@@ -204,7 +204,7 @@ export default function Analytics() {
                         </tr>
                       </thead>
                       <tbody>
-                        {campaigns.map((campaign) => {
+                        {campaigns.map((campaign: any) => {
                           const campaignSuccessRate = campaign.completedCalls > 0 
                             ? ((campaign.successfulCalls || 0) / campaign.completedCalls * 100).toFixed(1)
                             : "0";

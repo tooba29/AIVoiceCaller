@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Upload, X, Save, Bot } from "lucide-react";
+import { FileText, Upload, X, Save, Bot, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface CampaignSetupProps {
@@ -15,11 +15,12 @@ interface CampaignSetupProps {
 
 export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSetupProps) {
   const [firstPrompt, setFirstPrompt] = useState(
-    campaign?.firstPrompt || "Hi, I'm Sarah from Mathify. I hope you're having a great day!"
+    campaign?.firstPrompt || "Hi {{first_name}}, I'm Sarah from Mathify. I hope you're having a great day!"
   );
   const [systemPersona, setSystemPersona] = useState(
-    campaign?.systemPersona || "You are Sarah, a friendly and professional sales representative from Mathify. You help students and parents discover our math tutoring services. Always be helpful, enthusiastic, and respectful of the caller's time."
-  );
+    campaign?.systemPersona || 
+    "You are a friendly, professional sales assistant talking to {{first_name}}. You help potential customers by clearly explaining services, answering questions, and guiding them toward the right solution. Always be helpful, confident, and respectful of their time."
+  );  
   const [isDragging, setIsDragging] = useState(false);
   
   const { toast } = useToast();
@@ -33,8 +34,13 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
 
   // Update agent mutation
   const updateAgentMutation = useMutation({
-    mutationFn: (data: { firstPrompt: string; systemPersona: string; campaignId?: number }) =>
-      api.updateAgent(data),
+    mutationFn: (data: { 
+      firstPrompt: string; 
+      systemPersona?: string; 
+      campaignId?: number;
+      voiceId?: string;
+      knowledgeBaseId?: string;
+    }) => api.updateAgent(data),
     onSuccess: (data) => {
       toast({
         title: "Agent Updated",
@@ -54,13 +60,21 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
 
   // PDF upload mutation
   const pdfUploadMutation = useMutation({
-    mutationFn: (file: File) => api.uploadPDF(file),
-    onSuccess: () => {
+    mutationFn: (file: File) => api.uploadPDF(file, campaign.id.toString()),
+    onSuccess: (data) => {
       toast({
         title: "PDF Uploaded",
         description: "Knowledge base has been updated successfully.",
       });
+      // Update campaign with new knowledge base ID
+      if (data.knowledgeBase?.id) {
+        onCampaignUpdate({
+          ...campaign,
+          knowledgeBaseId: data.knowledgeBase.id.toString()
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
     onError: (error: any) => {
       toast({
@@ -72,19 +86,35 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
   });
 
   const handleUpdateAgent = () => {
-    if (!firstPrompt.trim() || !systemPersona.trim()) {
+    if (!firstPrompt.trim()) {
       toast({
         title: "Validation Error",
-        description: "Please fill in both first prompt and system persona.",
+        description: "Please provide a first prompt message.",
         variant: "destructive",
       });
       return;
     }
 
+    // Get the latest uploaded knowledge base file ID
+    const latestKnowledgeBase = knowledgeBase?.knowledgeBase?.[0];
+
+    // Create or update campaign
     updateAgentMutation.mutate({
       firstPrompt: firstPrompt.trim(),
       systemPersona: systemPersona.trim(),
-      campaignId: campaign?.id,
+      campaignId: campaign?.id || undefined, // If no ID, it will create a new campaign
+      voiceId: campaign?.selectedVoiceId,
+      knowledgeBaseId: latestKnowledgeBase?.id
+    }, {
+      onSuccess: (data) => {
+        // Ensure the campaign object is properly updated with the new ID
+        onCampaignUpdate(data.campaign);
+        toast({
+          title: "Campaign Updated",
+          description: "Campaign settings have been saved successfully.",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      }
     });
   };
 
@@ -191,15 +221,46 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                 <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <FileText className="h-4 w-4 text-red-500" />
-                    <span className="text-sm font-medium text-slate-700">{file.fileName}</span>
+                    <span className="text-sm font-medium text-slate-700">{file.filename}</span>
                     <span className="text-xs text-slate-500">
-                      {(file.fileSize / 1024 / 1024).toFixed(1)} MB
+                      {file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : 'PDF File'}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
                       Uploaded
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        if (campaign?.id) {
+                          const confirmDelete = window.confirm(
+                            "Are you sure you want to delete this file? This will remove it from the AI agent's knowledge base."
+                          );
+                          if (confirmDelete) {
+                            api.deleteKnowledgeBase(file.id, campaign.id)
+                              .then(() => {
+                                toast({
+                                  title: "File Deleted",
+                                  description: "Knowledge base file has been removed successfully.",
+                                });
+                                queryClient.invalidateQueries({ queryKey: ["/api/knowledge-base"] });
+                              })
+                              .catch((error) => {
+                                toast({
+                                  title: "Delete Failed",
+                                  description: error.message || "Failed to delete file",
+                                  variant: "destructive",
+                                });
+                              });
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -231,25 +292,27 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
               id="first-prompt"
               value={firstPrompt}
               onChange={(e) => setFirstPrompt(e.target.value)}
-              placeholder="Hi, I'm Sarah from Mathify. I hope you're having a great day!"
+              placeholder="Hi {{first_name}}, I'm Sarah from Mathify. I hope you're having a great day!"
               className="mt-2 resize-none"
               rows={3}
             />
           </div>
 
-          {/* System Persona */}
+          {/* System Persona - Disabled */}
           <div>
             <Label htmlFor="system-persona" className="text-sm font-medium text-slate-700">
-              System Persona
+              System Persona (Fixed)
             </Label>
             <Textarea
               id="system-persona"
               value={systemPersona}
-              onChange={(e) => setSystemPersona(e.target.value)}
-              placeholder="You are Sarah, a friendly and professional sales representative..."
-              className="mt-2 resize-none"
+              disabled
+              className="mt-2 resize-none bg-slate-50 text-slate-500"
               rows={4}
             />
+            <p className="mt-1 text-xs text-slate-500">
+              The system persona is pre-configured for optimal performance.
+            </p>
           </div>
 
           <Button 

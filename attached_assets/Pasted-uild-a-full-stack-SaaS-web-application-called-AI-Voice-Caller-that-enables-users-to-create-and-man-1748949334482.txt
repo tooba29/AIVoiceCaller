@@ -1,65 +1,223 @@
-uild a full-stack SaaS web application called "AI Voice Caller" that enables users to create and manage AI-powered voice calling campaigns using Twilio for outbound calls and ElevenLabs for real-time voice generation.
+# AI Voice Caller - Technical Documentation
 
-🔹 Core Features:
+## Project Overview
+AI Voice Caller is a full-stack SaaS web application that enables users to create and manage AI-powered voice calling campaigns. The application integrates Twilio for outbound calls and ElevenLabs for real-time voice generation, providing a powerful platform for automated voice interactions.
 
-Campaign dashboard to upload PDFs (knowledge base), configure AI prompts, and manage voice campaigns
+## Technology Stack
+- Frontend: React + TypeScript + Vite
+- UI Framework: Tailwind CSS + shadcn/ui components
+- State Management: TanStack Query (React Query)
+- Backend: Express.js + TypeScript
+- Storage: In-memory storage with TypeScript interfaces (can be extended to persistent storage)
+- APIs: Twilio (calls), ElevenLabs (voice generation)
+- WebSocket: For real-time voice streaming and call monitoring
 
-Integration with Twilio API for phone calls
+## Core Features
 
-Integration with ElevenLabs Conversational AI WebSocket API (refer to official ElevenLabs documentation — do not hardcode or break these endpoints)
+### 1. Campaign Management
+- Create, edit, and manage voice campaigns
+- Upload knowledge base PDFs for AI context
+- Configure AI prompts and system personas
+- Monitor active campaigns in real-time
+- View campaign analytics and statistics
 
-CSV upload with leads (columns: first_name, last_name, contact_no)
+### 2. Voice Management
+- Select from pre-made ElevenLabs voices
+- Clone voices by uploading voice samples
+- Preview voices before selection
+- Customize voice settings (stability, similarity boost, style)
 
-Test call with a single number
+### 3. Lead Management
+- Upload leads via CSV (columns: first_name, last_name, contact_no)
+- View and manage lead status
+- Track call progress and outcomes
+- Real-time call monitoring
 
-Campaign execution that calls all CSV leads
+### 4. Analytics Dashboard
+- Real-time campaign statistics
+- Success rate tracking
+- Call duration analytics
+- Campaign performance metrics
 
-Option to clone a voice, preview the sample, and select a custom or built-in ElevenLabs voice
+## API Endpoints
 
-🔹 Backend (Fastify):
+### Campaign Endpoints
+```typescript
+POST /api/campaigns/initialize
+- Create new campaign
+- Body: { name: string, type: 'new' | 'existing' }
 
-POST /upload-pdf → upload a PDF file and attach it to the agent's knowledge base
+POST /api/campaigns/select
+- Select existing campaign
+- Body: { campaignId: number }
 
-POST /update-agent → set a new first prompt and system persona
+GET /api/campaigns
+- Get all campaigns
 
-POST /make-outbound-call → call a single number using Twilio + ElevenLabs
+PUT /api/campaigns/:id
+- Update campaign
+- Body: Campaign partial object
 
-POST /start-campaign → batch call all leads from uploaded CSV
+DELETE /api/campaigns/:id
+- Delete campaign
+```
 
-GET /voices → fetch available ElevenLabs voices
+### Voice Endpoints
+```typescript
+GET /api/voices
+- Get available ElevenLabs voices
 
-POST /clone-voice → upload voice sample for cloning (optional)
+POST /api/voices/clone
+- Clone voice from sample
+- Body: FormData with audio file
 
-Use dotenv for secrets, and formidable or multer for file uploads
+POST /api/voices/preview
+- Preview voice sample
+- Body: { voiceId: string }
+```
 
-Store campaign state in memory or Replit DB
+### Knowledge Base Endpoints
+```typescript
+POST /api/knowledge-base/upload
+- Upload PDF for campaign
+- Body: FormData with PDF file
 
-🔹 Frontend (React + Tailwind):
+GET /api/knowledge-base
+- Get knowledge base files
 
-UI to:
+DELETE /api/knowledge-base/:id
+- Delete knowledge base file
+```
 
-Upload a campaign PDF
+### Call Management Endpoints
+```typescript
+POST /api/calls/test
+- Make test call
+- Body: { phoneNumber: string, campaignId: number, firstName?: string }
 
-Input first prompt (e.g. "Hi, I'm Sarah from Mathify...")
+POST /api/campaigns/start
+- Start campaign
+- Body: { campaignId: number }
 
-Input system prompt (e.g. "You are Sarah, a friendly sales rep...")
+POST /api/campaigns/pause
+- Pause active campaign
+- Body: { campaignId: number }
 
-Upload a CSV (columns: first_name, last_name, contact_no)
+GET /api/calls/logs
+- Get call logs
+```
 
-Input a test number and trigger a call
+## WebSocket Integration
 
-Start a campaign
+### ElevenLabs WebSocket
+- Endpoint: wss://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream-input
+- Used for real-time voice generation
+- Handles bi-directional audio streaming
+- Manages conversation state
 
-Select or clone a voice (upload sample, preview, choose)
+### Call Flow
+1. Campaign initiated
+2. Twilio makes outbound call
+3. WebSocket connection established
+4. Real-time voice generation and streaming
+5. Call monitoring and logging
+6. Analytics update
 
-Optional: show campaign log view of call status
+## Data Models
 
-⚠️ Important Notes:
+### Campaign
+```typescript
+interface Campaign {
+  id: number;
+  name: string;
+  firstPrompt: string;
+  systemPersona: string;
+  selectedVoiceId?: string;
+  status: string;
+  totalLeads: number;
+  completedCalls: number;
+  successfulCalls: number;
+  failedCalls: number;
+  createdAt: string;
+}
+```
 
-DO NOT hardcode ElevenLabs agent creation — the agent is already created and must only be updated
+### Voice
+```typescript
+interface Voice {
+  id: string;
+  name: string;
+  description: string;
+  isCloned: boolean;
+  sampleUrl?: string;
+  settings?: {
+    stability: number;
+    similarity_boost: number;
+    style: number;
+    use_speaker_boost: boolean;
+  };
+  category?: 'premade' | 'cloned' | 'generated';
+}
+```
 
-Use ElevenLabs endpoints: /v1/convai/knowledge-base/upload and /v1/convai/agent/{agent_id}
+### Lead
+```typescript
+interface Lead {
+  id: number;
+  campaignId: number;
+  firstName: string;
+  lastName: string;
+  contactNo: string;
+  status: string;
+  callDuration?: number;
+  createdAt: string;
+}
+```
+- A shared/schema.ts file contains TypeScript interfaces and data models shared between the frontend and backend, ensuring type safety across the full stack.
 
-Refer to official documentation when implementing WebSocket and voice cloning logic
+## Security Considerations
+- API key management for Twilio and ElevenLabs
+- Secure file uploads with size and type validation
+- Rate limiting on API endpoints
+- WebSocket connection security
+- Input validation and sanitization
 
-Ensure all endpoints are securely connected to the frontend via API
+## UI Components
+- Modern, responsive design using Tailwind CSS
+- Real-time updates using React Query
+- Interactive voice selection interface
+- Campaign monitoring dashboard
+- File upload with drag-and-drop
+- Toast notifications for user feedback
+
+## Error Handling
+- Comprehensive error handling for API calls
+- WebSocket connection error recovery
+- File upload validation
+- User-friendly error messages
+- Automatic retry mechanisms
+
+## Performance Optimizations
+- Efficient state management with React Query
+- Optimized file uploads
+- WebSocket connection pooling
+- Caching of voice samples
+- Lazy loading of components
+
+## Development Setup
+1. Install dependencies: `npm install`
+2. Set up environment variables:
+   - TWILIO_ACCOUNT_SID
+   - TWILIO_AUTH_TOKEN
+   - ELEVENLABS_API_KEY
+3. Start development server: `npm run dev`
+4. Build for production: `npm run build`
+
+## Deployment
+- Supports deployment on various platforms
+- Environment variable configuration
+- Static asset optimization
+- API endpoint configuration
+- WebSocket server setup
+
+This documentation provides a technical overview of the AI Voice Caller project. For detailed implementation specifics, refer to the source code and comments within each component.

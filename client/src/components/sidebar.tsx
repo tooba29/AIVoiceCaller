@@ -5,11 +5,17 @@ import {
   Megaphone, 
   MicOff, 
   TrendingUp,
-  User
+  User,
+  LogOut
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Sidebar() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
+  const { toast } = useToast();
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: BarChart3, current: location === "/" || location === "/dashboard" },
@@ -17,6 +23,22 @@ export default function Sidebar() {
     { name: "Voice Library", href: "/voices", icon: MicOff, current: location === "/voices" },
     { name: "Analytics", href: "/analytics", icon: TrendingUp, current: location === "/analytics" },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Logout failed",
+        description: error.message || "An error occurred during logout.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="w-64 bg-card border-r border-border flex flex-col shadow-lg">
@@ -62,14 +84,28 @@ export default function Sidebar() {
 
       {/* User Section */}
       <div className="p-4 border-t border-border">
-        <div className="flex items-center space-x-3 p-3 rounded-xl bg-accent/50 hover:bg-accent transition-colors">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary to-violet-500 rounded-full flex items-center justify-center shadow-sm">
-            <User className="h-5 w-5 text-white" />
+        <div className="space-y-3">
+          <div className="flex items-center space-x-3 p-3 rounded-xl bg-accent/50">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-violet-500 rounded-full flex items-center justify-center shadow-sm">
+              <User className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">
+                {user?.email || "User"}
+              </p>
+              <p className="text-xs text-muted-foreground">Active User</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">John Smith</p>
-            <p className="text-xs text-muted-foreground">Pro Plan</p>
-          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="w-full text-muted-foreground hover:text-destructive border-muted-foreground/20 hover:border-destructive/30"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
         </div>
       </div>
     </div>

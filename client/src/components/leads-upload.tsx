@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Upload, FileSpreadsheet } from "lucide-react";
+import { Users, Upload, FileSpreadsheet, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface LeadsUploadProps {
@@ -21,7 +21,7 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
   // CSV upload mutation
   const csvUploadMutation = useMutation({
     mutationFn: ({ file, campaignId }: { file: File; campaignId: number }) =>
-      api.uploadCSV(file, campaignId),
+      api.uploadCSV(file, campaignId.toString()),
     onSuccess: (data) => {
       toast({
         title: "CSV Uploaded",
@@ -34,6 +34,26 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
       toast({
         title: "Upload Failed",
         description: error.message || "Failed to upload CSV.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete leads mutation
+  const deleteLeadsMutation = useMutation({
+    mutationFn: (campaignId: number) => api.deleteLeads(campaignId),
+    onSuccess: (data) => {
+      toast({
+        title: "Leads Deleted",
+        description: `Successfully deleted ${data.deletedCount} leads.`,
+      });
+      onLeadsUpload([]); // Clear the leads from the parent component
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete leads.",
         variant: "destructive",
       });
     },
@@ -94,6 +114,34 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
     const file = e.target.files?.[0];
     if (file) {
       handleCSVUpload(file);
+    }
+  };
+
+  const handleDeleteLeads = () => {
+    if (!campaignId) {
+      toast({
+        title: "No Campaign",
+        description: "Please create or select a campaign first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (uploadedLeads.length === 0) {
+      toast({
+        title: "No Leads",
+        description: "There are no leads to delete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete all ${uploadedLeads.length} uploaded leads? This action cannot be undone.`
+    );
+
+    if (confirmDelete) {
+      deleteLeadsMutation.mutate(campaignId);
     }
   };
 
@@ -170,9 +218,30 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
           <div className="bg-slate-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-medium text-slate-700">Uploaded Leads</p>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                {uploadedLeads.length} contacts
-              </Badge>
+              <div className="flex items-center space-x-2">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                  {uploadedLeads.length} contacts
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteLeads}
+                  disabled={deleteLeadsMutation.isPending}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                >
+                  {deleteLeadsMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Delete All
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {uploadedLeads.slice(0, 10).map((lead, index) => (

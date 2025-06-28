@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Play, Upload, MicOff, Trash2, Plus } from "lucide-react";
+import { Search, Play, Upload, MicOff, Trash2, Plus, Pause } from "lucide-react";
 import { api, type Voice } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 
@@ -16,18 +16,33 @@ export default function Voices() {
   const [cloneName, setCloneName] = useState("");
   const [cloneDescription, setCloneDescription] = useState("");
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Helper function to cleanup audio
+  const cleanupAudio = (audioToClean: HTMLAudioElement) => {
+    audioToClean.pause();
+    audioToClean.currentTime = 0;
+    audioToClean.src = '';
+    audioToClean.load();
+    setPlayingVoice(null);
+    setAudioElement(null);
+    setIsPlaying(false);
+  };
+
   const { data: voicesData, isLoading } = useQuery({
     queryKey: ["/api/voices"],
     queryFn: () => api.getVoices(),
+    staleTime: 0, // Always refetch
+    cacheTime: 0, // Don't cache
   });
 
   const cloneVoiceMutation = useMutation({
     mutationFn: ({ file, data }: { file: File; data: { name: string; description?: string } }) =>
-      api.cloneVoice(file, data),
+      api.uploadVoiceSample(file, data.name, data.description),
     onSuccess: () => {
       toast({
         title: "Voice Cloned",
@@ -48,43 +63,192 @@ export default function Voices() {
   });
 
   const voices = voicesData?.voices || [];
-  const filteredVoices = voices.filter(voice =>
+  const filteredVoices = voices.filter((voice: any) =>
     voice.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     voice.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleVoicePreview = async (voice: Voice) => {
-    if (playingVoice === voice.id) {
-      setPlayingVoice(null);
-      return;
-    }
-
-    if (!voice.sampleUrl) {
-      toast({
-        title: "Preview Unavailable",
-        description: "No preview available for this voice.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setPlayingVoice(voice.id);
-    
     try {
-      const audio = new Audio(voice.sampleUrl);
-      await audio.play();
+      // If clicking the same voice that's currently playing
+      if (playingVoice === voice.id && audioElement) {
+        if (isPlaying) {
+          audioElement.pause();
+          setIsPlaying(false);
+        } else {
+          try {
+            await audioElement.play();
+            setIsPlaying(true);
+          } catch (error) {
+            console.error('Error resuming playback:', error);
+            cleanupAudio(audioElement);
+            toast({
+              title: "Playback Failed",
+              description: "Failed to resume playback. Please try again.",
+              variant: "destructive",
+            });
+          }
+        }
+        return;
+      }
+
+      // Stop current playback if any
+      if (audioElement) {
+        cleanupAudio(audioElement);
+      }
+
+      if (!voice.sampleUrl) {
+        toast({
+          title: "Preview Unavailable",
+          description: "No preview available for this voice.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create and set up new audio element
+      const audio = new Audio();
       
-      audio.onended = () => {
-        setPlayingVoice(null);
+      // Add loading state
+      const loadingToast = toast({
+        title: "Loading Preview",
+        description: "Preparing voice sample...",
+      });
+
+      let isLoading = true;
+      let hasError = false;
+
+      const cleanup = () => {
+        isLoading = false;
+        loadingToast.dismiss();
+        if (audio) {
+          cleanupAudio(audio);
+        }
       };
+
+      // Set up audio event handlers before setting the source
+      audio.addEventListener('canplaythrough', () => {
+        if (hasError || !isLoading) return;
+        isLoading = false;
+        loadingToast.dismiss();
+        setAudioElement(audio);
+        setPlayingVoice(voice.id);
+        setIsPlaying(true);
+        audio.play().catch((error) => {
+          if (hasError) return;
+          hasError = true;
+          console.error('Error playing audio:', error);
+          cleanupAudio(audio);
+          toast({
+            title: "Preview Failed",
+            description: "Failed to play voice sample. Please try again.",
+            variant: "destructive",
+          });
+        });
+      }, { once: true });
+      
+      audio.addEventListener('ended', () => {
+        cleanupAudio(audio);
+      }, { once: true });
+
+      audio.addEventListener('pause', () => {
+        setIsPlaying(false);
+      });
+
+      audio.addEventListener('play', () => {
+        setIsPlaying(true);
+      });
+
+      audio.addEventListener('error', (e) => {
+        if (hasError) return;
+        hasError = true;
+        
+        // Only log error if it's not due to cleanup
+        if (isLoading) {
+          console.error('Audio error:', e);
+        }
+        
+        cleanup();
+        
+        if (isLoading) {
+          let errorMessage = "Failed to load voice sample.";
+          if (audio.error) {
+            switch (audio.error.code) {
+              case MediaError.MEDIA_ERR_ABORTED:
+                errorMessage = "Audio playback was aborted.";
+                break;
+              case MediaError.MEDIA_ERR_NETWORK:
+                errorMessage = "Network error occurred while loading the audio.";
+                break;
+              case MediaError.MEDIA_ERR_DECODE:
+                errorMessage = "Audio decoding error occurred.";
+                break;
+              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = "Audio format is not supported.";
+                break;
+            }
+          }
+          
+          toast({
+            title: "Preview Failed",
+            description: errorMessage + " Please try again.",
+            variant: "destructive",
+          });
+        }
+      }, { once: true });
+
+      // Set CORS mode
+      audio.crossOrigin = "anonymous";
+      
+      // Set the source and load the audio
+      const proxyUrl = `/api/voice-preview/${voice.id}`;
+      
+      // Set up timeout to prevent hanging
+      const timeoutId = setTimeout(() => {
+        if (isLoading && !hasError) {
+          hasError = true;
+          cleanup();
+          toast({
+            title: "Preview Failed",
+            description: "Loading took too long. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }, 10000);
+
+      try {
+        // Preload the audio to check if the URL is valid
+        const response = await fetch(proxyUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          throw new Error('Failed to load audio preview');
+        }
+
+        audio.src = proxyUrl;
+        await audio.load();
+      } catch (error) {
+        if (hasError) return;
+        hasError = true;
+        console.error('Error loading audio:', error);
+        cleanup();
+        toast({
+          title: "Preview Failed",
+          description: "Failed to load voice sample. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
     } catch (error) {
-      console.error('Error playing voice sample:', error);
+      console.error('Error setting up audio:', error);
+      setPlayingVoice(null);
+      setAudioElement(null);
+      setIsPlaying(false);
       toast({
         title: "Preview Failed",
-        description: "Failed to play voice sample.",
+        description: "Failed to set up voice preview. Please try again.",
         variant: "destructive",
       });
-      setPlayingVoice(null);
     }
   };
 
@@ -268,7 +432,7 @@ export default function Voices() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredVoices.map((voice) => (
+                                        {filteredVoices.map((voice: any) => (
                   <Card key={voice.id} className="border border-border bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 shadow-lg hover:shadow-xl">
                     <CardHeader>
                       <div className="flex items-center justify-between">
@@ -293,18 +457,33 @@ export default function Voices() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <Button
-                          variant="outline"
+                          variant={playingVoice === voice.id ? "default" : "outline"}
                           size="sm"
                           onClick={() => handleVoicePreview(voice)}
-                          disabled={playingVoice !== null}
-                          className="flex-1 mr-2"
+                          className={`flex-1 mr-2 ${
+                            playingVoice === voice.id 
+                              ? "bg-primary hover:bg-primary/90" 
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
                         >
                           {playingVoice === voice.id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                            isPlaying ? (
+                              <>
+                                <Pause className="h-4 w-4 mr-2" />
+                                Pause
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-4 w-4 mr-2" />
+                                Resume
+                              </>
+                            )
                           ) : (
-                            <Play className="h-4 w-4 mr-2" />
+                            <>
+                              <Play className="h-4 w-4 mr-2" />
+                              Preview
+                            </>
                           )}
-                          {playingVoice === voice.id ? "Playing..." : "Preview"}
                         </Button>
                         
                         {voice.isCloned && (
