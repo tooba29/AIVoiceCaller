@@ -30,6 +30,7 @@
   },
   "include": [
     "client/src",
-    "shared"
+    "shared",
+    "vite.config.ts"
   ]
 }
