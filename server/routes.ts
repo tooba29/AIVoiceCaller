@@ -1248,20 +1248,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
       const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
       const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-      const ngrokUrl = process.env.NGROK_URL;
+      const baseUrl = process.env.BASE_URL;
 
-      if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber || !ngrokUrl) {
-        throw new Error('Missing required Twilio credentials or NGROK_URL');
+      if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber || !baseUrl) {
+        throw new Error('Missing required Twilio credentials or BASE_URL');
       }
 
       try {
         const twilioClient: Twilio = twilio(twilioAccountSid, twilioAuthToken);
         
-        // Ensure ngrokUrl uses https
-        const secureNgrokUrl = ngrokUrl.replace(/^http:/, 'https:');
+        // Ensure baseUrl uses https
+        const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
 
         // Create TwiML URL with required parameters
-        const twimlUrl = new URL(`${secureNgrokUrl}/outbound-call-twiml`);
+        const twimlUrl = new URL(`${secureBaseUrl}/outbound-call-twiml`);
         twimlUrl.searchParams.append('campaignId', campaignId.toString());
         twimlUrl.searchParams.append('firstName', firstName || 'there');
         twimlUrl.searchParams.append('isTestCall', 'true');
@@ -1272,7 +1272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           to: phoneNumber,
           from: twilioPhoneNumber,
           url: twimlUrl.toString(),
-          statusCallback: `${secureNgrokUrl}/api/twilio/status`,
+          statusCallback: `${secureBaseUrl}/api/twilio/status`,
           statusCallbackMethod: 'POST',
           statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
         });
@@ -2478,7 +2478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update TwiML endpoint to handle test calls
   app.all("/outbound-call-twiml", (req, res) => {
-    const baseUrl = process.env.NGROK_URL;
+    const baseUrl = process.env.BASE_URL;
     const campaignId = req.query.campaignId;
     const leadId = req.query.leadId;
     const firstName = req.query.firstName;
@@ -2493,7 +2493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     if (!baseUrl) {
-      return res.status(500).send('Missing NGROK_URL environment variable');
+      return res.status(500).send('Missing BASE_URL environment variable');
     }
 
     // Validate required parameters
@@ -2817,9 +2817,9 @@ async function processcamp(campaignId: number) {
     const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
     const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
     const elevenLabsAgentId = process.env.ELEVENLABS_AGENT_ID;
-    const ngrokUrl = process.env.NGROK_URL;
+    const baseUrl = process.env.BASE_URL;
 
-    if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber || !elevenLabsApiKey || !elevenLabsAgentId || !ngrokUrl) {
+    if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber || !elevenLabsApiKey || !elevenLabsAgentId || !baseUrl) {
       throw new Error('Missing required credentials for voice calls');
     }
 
@@ -2857,18 +2857,18 @@ async function processcamp(campaignId: number) {
           twilioCallSid: null,
         });
 
-        // Ensure ngrokUrl uses https
-        const secureNgrokUrl = ngrokUrl.replace(/^http:/, 'https:');
+        // Ensure baseUrl uses https
+        const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
 
         // Create TwiML URL for the call with campaignId as query parameter
-        const twimlUrl = `${secureNgrokUrl}/outbound-call-twiml?campaignId=${campaignId}&leadId=${lead.id}&firstName=${encodeURIComponent(lead.firstName || 'there')}`;
+        const twimlUrl = `${secureBaseUrl}/outbound-call-twiml?campaignId=${campaignId}&leadId=${lead.id}&firstName=${encodeURIComponent(lead.firstName || 'there')}`;
 
         // Make the call using Twilio
         const call = await twilioClient.calls.create({
           to: lead.contactNo,
           from: twilioPhoneNumber,
           url: twimlUrl,
-          statusCallback: `${secureNgrokUrl}/api/twilio/status`,
+          statusCallback: `${secureBaseUrl}/api/twilio/status`,
           statusCallbackMethod: 'POST',
           statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
         });
