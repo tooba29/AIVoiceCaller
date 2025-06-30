@@ -22,7 +22,6 @@ export default function Analytics() {
   const activeCampaigns = campaigns.filter((c: any) => c.status === "active").length;
   const totalCalls = campaigns.reduce((sum: number, c: any) => sum + (c.completedCalls || 0), 0);
   const successfulCalls = campaigns.reduce((sum: number, c: any) => sum + (c.successfulCalls || 0), 0);
-  const failedCalls = campaigns.reduce((sum: number, c: any) => sum + (c.failedCalls || 0), 0);
   const successRate = totalCalls > 0 ? ((successfulCalls / totalCalls) * 100).toFixed(1) : "0";
 
   const analyticsCards = [
@@ -58,12 +57,12 @@ export default function Analytics() {
 
   const getColorClasses = (color: string) => {
     const colorMap: Record<string, string> = {
-      blue: "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300",
-      green: "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300",
-      purple: "bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300",
-      emerald: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300",
+      blue: "bg-blue-100 text-blue-600",
+      green: "bg-green-100 text-green-600",
+      purple: "bg-purple-100 text-purple-600",
+      emerald: "bg-emerald-100 text-emerald-600",
     };
-    return colorMap[color] || "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+    return colorMap[color] || "bg-gray-100 text-gray-600";
   };
 
   return (
@@ -216,10 +215,10 @@ export default function Analytics() {
                               </td>
                               <td className="py-3 px-4">
                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  campaign.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                                  campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                                  campaign.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                                  'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                        campaign.status === 'active' ? 'bg-green-100 text-green-700' :
+                      campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
+                      campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
                                 }`}>
                                   {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
                                 </span>

@@ -5,8 +5,8 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_LIMIT = 5  // Allow up to 5 notifications at once
+const TOAST_REMOVE_DELAY = 5000  // 5 seconds auto-dismiss for better UX
 
 type ToasterToast = ToastProps & {
   id: string

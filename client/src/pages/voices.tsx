@@ -37,7 +37,6 @@ export default function Voices() {
     queryKey: ["/api/voices"],
     queryFn: () => api.getVoices(),
     staleTime: 0, // Always refetch
-    cacheTime: 0, // Don't cache
   });
 
   const cloneVoiceMutation = useMutation({
@@ -448,7 +447,7 @@ export default function Voices() {
                           </div>
                         </div>
                         {voice.isCloned && (
-                          <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                          <Badge className="bg-purple-100 text-purple-700">
                             Cloned
                           </Badge>
                         )}

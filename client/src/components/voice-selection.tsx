@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MicOff, Play, Pause, Upload, Users, RefreshCw } from "lucide-react";
+import { MicOff, Play, Pause, Upload, Users, RefreshCw, Mic2, User, Bot } from "lucide-react";
 import { api, type Voice } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface VoiceSelectionProps {
   selectedVoiceId: string;
@@ -16,286 +18,214 @@ interface VoiceSelectionProps {
 
 export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: VoiceSelectionProps) {
   const [activeTab, setActiveTab] = useState<"library" | "clone">("library");
-  const [cloneName, setCloneName] = useState("");
-  const [cloneDescription, setCloneDescription] = useState("");
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [voiceName, setVoiceName] = useState("");
+  const [voiceDescription, setVoiceDescription] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Helper function to cleanup audio
-  const cleanupAudio = (audioToClean: HTMLAudioElement) => {
-    audioToClean.pause();
-    audioToClean.currentTime = 0;
-    audioToClean.src = '';
-    audioToClean.load();
-    setPlayingVoice(null);
-    setAudioElement(null);
-    setIsPlaying(false);
-  };
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get voices
-  const { data: voicesData, isLoading, refetch } = useQuery({
+  const { data: voicesData, isLoading } = useQuery({
     queryKey: ["/api/voices"],
     queryFn: () => api.getVoices(),
-    staleTime: 0, // Always refetch
-    cacheTime: 0, // Don't cache
+    gcTime: 5 * 60 * 1000,
+  });
+
+  const cleanupAudio = (audioToClean: HTMLAudioElement) => {
+    try {
+      if (audioToClean) {
+        audioToClean.pause();
+        audioToClean.removeAttribute("src");
+        audioToClean.load();
+        
+        // Remove all event listeners
+        audioToClean.onended = null;
+        audioToClean.onerror = null;
+        audioToClean.onloadstart = null;
+        audioToClean.oncanplay = null;
+        audioToClean.onpause = null;
+        audioToClean.onplay = null;
+      }
+    } catch (error) {
+      console.error("Error cleaning up audio:", error);
+    }
+  };
+
+  const refreshMutation = useMutation({
+    mutationFn: () => api.getVoices(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voices"] });
+      toast({
+        title: "Voices Refreshed",
+        description: "Voice library has been updated",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Refresh Failed",
+        description: error.message || "Failed to refresh voices",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refetch();
-    setTimeout(() => setIsRefreshing(false), 1000);
+    try {
+      await refreshMutation.mutateAsync();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  // Clone voice mutation
-  const cloneVoiceMutation = useMutation({
-    mutationFn: ({ file, data }: { file: File; data: { name: string; description?: string } }) =>
+  const handleVoicePreview = async (voice: Voice) => {
+    if (!voice.sampleUrl) {
+      toast({
+        title: "No Preview Available",
+        description: "This voice doesn't have a preview available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (currentlyPlaying === voice.id) {
+        // Stop current audio
+        if (audioRef.current) {
+          cleanupAudio(audioRef.current);
+        }
+        setCurrentlyPlaying(null);
+        setIsPlaying(false);
+        return;
+      }
+
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        cleanupAudio(audioRef.current);
+      }
+
+      // Create new audio element
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      
+      const cleanup = () => {
+        if (audioRef.current === audio) {
+          setCurrentlyPlaying(null);
+          setIsPlaying(false);
+          audioRef.current = null;
+        }
+      };
+
+      audio.onloadstart = () => {
+        console.log(`[Voice Selection] Loading audio for voice: ${voice.name}`);
+        setCurrentlyPlaying(voice.id);
+        setIsPlaying(true);
+      };
+
+      audio.oncanplay = () => {
+        console.log(`[Voice Selection] Audio ready for voice: ${voice.name}`);
+      };
+
+      audio.onended = () => {
+        console.log(`[Voice Selection] Audio ended for voice: ${voice.name}`);
+        cleanup();
+      };
+
+      audio.onerror = (error) => {
+        console.error(`[Voice Selection] Audio error for voice ${voice.name}:`, error);
+        cleanup();
+        toast({
+          title: "Playback Error",
+          description: `Failed to play preview for ${voice.name}`,
+          variant: "destructive",
+        });
+      };
+
+      audio.onpause = () => {
+        console.log(`[Voice Selection] Audio paused for voice: ${voice.name}`);
+        setIsPlaying(false);
+      };
+
+      audio.onplay = () => {
+        console.log(`[Voice Selection] Audio playing for voice: ${voice.name}`);
+        setIsPlaying(true);
+      };
+
+      audioRef.current = audio;
+      
+      // Use the sample URL from the voice object
+      const audioUrl = voice.sampleUrl;
+      console.log(`[Voice Selection] Loading audio from: ${audioUrl}`);
+      
+      audio.src = audioUrl;
+      await audio.play();
+      
+    } catch (error) {
+      console.error(`[Voice Selection] Error playing voice preview:`, error);
+      setCurrentlyPlaying(null);
+      setIsPlaying(false);
+      toast({
+        title: "Playback Error",
+        description: "Failed to play voice preview",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Voice cloning mutation
+  const cloneMutation = useMutation({
+    mutationFn: ({ file, data }: { file: File, data: { name: string, description?: string } }) =>
       api.uploadVoiceSample(file, data.name, data.description),
     onSuccess: (data) => {
       toast({
-        title: "Voice Cloned",
-        description: "Voice has been cloned successfully.",
+        title: "Voice Cloned Successfully",
+        description: `${data.voice?.name} has been added to your voice library.`,
       });
-      setCloneName("");
-      setCloneDescription("");
-      setActiveTab("library");
       queryClient.invalidateQueries({ queryKey: ["/api/voices"] });
-      if (data.voice) {
-        onVoiceSelect(data.voice.id);
-      }
+      setShowCloneDialog(false);
+      setVoiceName("");
+      setVoiceDescription("");
     },
     onError: (error: any) => {
       toast({
-        title: "Clone Failed",
-        description: error.message || "Failed to clone voice.",
+        title: "Voice Clone Failed",
+        description: error.message || "Failed to clone voice",
         variant: "destructive",
       });
     },
   });
 
-  const handleVoicePreview = async (voice: Voice) => {
-    try {
-      // If clicking the same voice that's currently playing
-      if (playingVoice === voice.id && audioElement) {
-        if (isPlaying) {
-          audioElement.pause();
-          setIsPlaying(false);
-        } else {
-          try {
-            await audioElement.play();
-            setIsPlaying(true);
-          } catch (error) {
-            console.error('Error resuming playback:', error);
-            cleanupAudio(audioElement);
-            toast({
-              title: "Playback Failed",
-              description: "Failed to resume playback. Please try again.",
-              variant: "destructive",
-            });
-          }
-        }
-        return;
-      }
-
-      // Stop current playback if any
-      if (audioElement) {
-        cleanupAudio(audioElement);
-      }
-
-      if (!voice.sampleUrl) {
-        toast({
-          title: "Preview Unavailable",
-          description: "No preview available for this voice.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Create and set up new audio element
-      const audio = new Audio();
-      
-      // Add loading state
-      const loadingToast = toast({
-        title: "Loading Preview",
-        description: "Preparing voice sample...",
-      });
-
-      let isLoading = true;
-      let hasError = false;
-
-      const cleanup = () => {
-        isLoading = false;
-        loadingToast.dismiss();
-        if (audio) {
-          cleanupAudio(audio);
-        }
-      };
-
-      // Set up audio event handlers before setting the source
-      audio.addEventListener('canplaythrough', () => {
-        if (hasError || !isLoading) return;
-        isLoading = false;
-        loadingToast.dismiss();
-        setAudioElement(audio);
-        setPlayingVoice(voice.id);
-        setIsPlaying(true);
-        audio.play().catch((error) => {
-          if (hasError) return;
-          hasError = true;
-          console.error('Error playing audio:', error);
-          cleanupAudio(audio);
-          toast({
-            title: "Preview Failed",
-            description: "Failed to play voice sample. Please try again.",
-            variant: "destructive",
-          });
-        });
-      }, { once: true });
-      
-      audio.addEventListener('ended', () => {
-        cleanupAudio(audio);
-      }, { once: true });
-
-      audio.addEventListener('pause', () => {
-        setIsPlaying(false);
-      });
-
-      audio.addEventListener('play', () => {
-        setIsPlaying(true);
-      });
-
-      audio.addEventListener('error', (e) => {
-        if (hasError) return;
-        hasError = true;
-        
-        // Only log error if it's not due to cleanup
-        if (isLoading) {
-          console.error('Audio error:', e);
-        }
-        
-        cleanup();
-        
-        if (isLoading) {
-          let errorMessage = "Failed to load voice sample.";
-          if (audio.error) {
-            switch (audio.error.code) {
-              case MediaError.MEDIA_ERR_ABORTED:
-                errorMessage = "Audio playback was aborted.";
-                break;
-              case MediaError.MEDIA_ERR_NETWORK:
-                errorMessage = "Network error occurred while loading the audio.";
-                break;
-              case MediaError.MEDIA_ERR_DECODE:
-                errorMessage = "Audio decoding error occurred.";
-                break;
-              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                errorMessage = "Audio format is not supported.";
-                break;
-            }
-          }
-          
-          toast({
-            title: "Preview Failed",
-            description: errorMessage + " Please try again.",
-            variant: "destructive",
-          });
-        }
-      }, { once: true });
-
-      // Set CORS mode
-      audio.crossOrigin = "anonymous";
-      
-      // Set the source and load the audio
-      const proxyUrl = `/api/voice-preview/${voice.id}`;
-      
-      // Set up timeout to prevent hanging
-      const timeoutId = setTimeout(() => {
-        if (isLoading && !hasError) {
-          hasError = true;
-          cleanup();
-          toast({
-            title: "Preview Failed",
-            description: "Loading took too long. Please try again.",
-            variant: "destructive",
-          });
-        }
-      }, 10000); // 10 second timeout
-
-      try {
-        // Preload the audio to check if the URL is valid
-        const response = await fetch(proxyUrl, { method: 'HEAD' });
-        if (!response.ok) {
-          throw new Error('Failed to load audio preview');
-        }
-
-        audio.src = proxyUrl;
-        await audio.load();
-      } catch (error) {
-        if (hasError) return;
-        hasError = true;
-        console.error('Error loading audio:', error);
-        cleanup();
-        toast({
-          title: "Preview Failed",
-          description: "Failed to load voice sample. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-    } catch (error) {
-      console.error('Error setting up audio:', error);
-      setPlayingVoice(null);
-      setAudioElement(null);
-      setIsPlaying(false);
-      toast({
-        title: "Preview Failed",
-        description: "Failed to set up voice preview. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleVoiceClone = (file: File) => {
-    if (!cloneName.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter a voice name.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!file.type.startsWith('audio/')) {
       toast({
         title: "Invalid File",
-        description: "Please upload an audio file (MP3, WAV).",
+        description: "Please upload an audio file (MP3, WAV, M4A).",
         variant: "destructive",
       });
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) { // 50MB
+    if (file.size > 10 * 1024 * 1024) { // 10MB
       toast({
         title: "File Too Large",
-        description: "Audio file must be smaller than 50MB.",
+        description: "Audio file must be smaller than 10MB.",
         variant: "destructive",
       });
       return;
     }
 
-    cloneVoiceMutation.mutate({
-      file,
-      data: {
-        name: cloneName.trim(),
-        description: cloneDescription.trim() || undefined,
-      },
-    });
+    // Set the file name as the voice name and show dialog
+    setVoiceName(file.name.replace(/\.[^/.]+$/, ""));
+    setShowCloneDialog(true);
+    
+    // Store the file for later use
+    (window as any).tempAudioFile = file;
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,198 +235,275 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
     }
   };
 
-  if (isLoading) {
-    return (
-      <Card className="border border-slate-200">
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-slate-200 rounded w-1/2"></div>
-            <div className="h-12 bg-slate-200 rounded"></div>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-16 bg-slate-200 rounded"></div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleVoiceClone(file);
+    }
+  };
 
-  const voices = voicesData?.voices || [];
-  
-  // Debug: Check if voices are loaded
-  if (voices.length > 0) {
-    console.log('Voice selection: Found', voices.length, 'voices');
-  } else {
-    console.log('Voice selection: No voices found, isLoading:', isLoading, 'voicesData:', voicesData);
-  }
+  const handleConfirmClone = () => {
+    if (!voiceName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a voice name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const file = (window as any).tempAudioFile;
+    if (!file) {
+      toast({
+        title: "Error",
+        description: "No audio file found. Please try uploading again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    cloneMutation.mutate({
+      file,
+      data: {
+        name: voiceName.trim(),
+        description: voiceDescription.trim() || undefined,
+      },
+    });
+  };
 
   return (
-    <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
+    <Card className="glass-card border-gradient shadow-xl hover:shadow-2xl transition-all duration-300">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-md">
-              <MicOff className="h-6 w-6 text-white" />
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+              <Mic2 className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-foreground">Voice Selection</h3>
-              <p className="text-sm text-muted-foreground font-medium">Choose or clone a voice for your campaigns</p>
+              <span className="text-xl font-bold text-gradient">AI Voice Selection</span>
+              <p className="text-sm text-muted-foreground/80">Choose from premium or custom voices</p>
             </div>
           </div>
           <Button
+            onClick={handleRefresh}
+            disabled={isLoading || refreshMutation.isPending}
             variant="outline"
             size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="border-slate-300 text-slate-700 hover:bg-slate-50"
+            className="glass-card border-gradient hover-lift"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-4 w-4 ${(isLoading || refreshMutation.isPending) ? 'animate-spin' : ''}`} />
           </Button>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Voice Options Tabs */}
-        <div className="flex space-x-1 p-1 bg-accent/50 rounded-xl mb-6">
-          <button
-            onClick={() => setActiveTab("library")}
-            className={`flex-1 py-3 px-4 font-medium rounded-lg transition-all duration-200 ${
-              activeTab === "library"
-                ? "bg-primary text-primary-foreground shadow-md"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
-          >
-            <Users className="h-4 w-4 inline mr-2" />
-            Voice Library
-          </button>
-          <button
-            onClick={() => setActiveTab("clone")}
-            className={`flex-1 py-3 px-4 font-medium rounded-lg transition-all duration-200 ${
-              activeTab === "clone"
-                ? "bg-primary text-primary-foreground shadow-md"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
-          >
-            <Upload className="h-4 w-4 inline mr-2" />
-            Clone Voice
-          </button>
-        </div>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "library" | "clone")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="library" className="flex items-center space-x-2">
+              <Bot className="h-4 w-4" />
+              <span>Voice Library</span>
+            </TabsTrigger>
+            <TabsTrigger value="clone" className="flex items-center space-x-2">
+              <Upload className="h-4 w-4" />
+              <span>Clone Voice</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Voice Library */}
-        {activeTab === "library" && (
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-            {voices.map((voice: any) => (
-              <div
-                key={voice.id}
-                className={`p-4 border rounded-lg transition-all duration-200 ${
-                  selectedVoiceId === voice.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex-1 cursor-pointer" onClick={() => onVoiceSelect(voice.id)}>
-                    <h4 className="font-medium text-foreground">{voice.name}</h4>
-                    <p className="text-sm text-muted-foreground">{voice.description}</p>
+          <TabsContent value="library" className="space-y-6">
+            {/* Voice List */}
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="glass-card border-gradient p-4">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gradient-to-r from-blue-300 to-purple-300 rounded w-3/4 mb-2 shimmer"></div>
+                      <div className="h-3 bg-gradient-to-r from-indigo-300 to-pink-300 rounded w-1/2 shimmer"></div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant="secondary"
-                      className={
-                        voice.category === "premade"
-                          ? "bg-blue-100 text-blue-700"
-                          : voice.category === "cloned"
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-green-100 text-green-700"
-                      }
-                    >
-                      {voice.category}
-                    </Badge>
-                    {voice.sampleUrl && (
-                      <Button
-                        size="sm"
-                        variant={playingVoice === voice.id ? "default" : "ghost"}
-                        className={`w-8 h-8 p-0 ${
-                          playingVoice === voice.id 
-                            ? "bg-primary hover:bg-primary/90" 
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVoicePreview(voice);
-                        }}
-                      >
-                        {playingVoice === voice.id ? (
-                          isPlaying ? (
-                            <Pause className="h-4 w-4" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                {voicesData?.voices?.map((voice: any) => (
+                  <div
+                    key={voice.id}
+                    className={`p-4 rounded-xl border transition-all duration-300 cursor-pointer group relative overflow-hidden ${
+                      selectedVoiceId === voice.id
+                        ? 'glass-card border-gradient bg-gradient-to-r from-blue-50/50 to-purple-50/30 shadow-lg'
+                        : 'glass-card border-border/30 hover:border-primary/50 hover:bg-gradient-to-r hover:from-blue-50/20 hover:to-purple-50/10'
+                    }`}
+                    onClick={() => onVoiceSelect(voice.id)}
+                  >
+                    {/* Background gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-100/10 via-purple-100/10 to-indigo-100/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md transition-all duration-300 ${
+                          voice.isCloned 
+                            ? 'bg-gradient-to-br from-purple-500 to-pink-500' 
+                            : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                        } group-hover:scale-110`}>
+                          {voice.isCloned ? (
+                            <User className="h-5 w-5 text-white" />
                           ) : (
-                            <Play className="h-4 w-4" />
-                          )
-                        ) : (
-                          <Play className="h-4 w-4" />
+                            <Bot className="h-5 w-5 text-white" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-medium text-foreground">{voice.name}</h4>
+                            {voice.isCloned && (
+                              <span className="px-2 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 text-xs rounded-full font-medium border border-purple-200">
+                                Custom
+                              </span>
+                            )}
+                            {selectedVoiceId === voice.id && (
+                              <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full animate-pulse"></div>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground/70">{voice.description}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        {voice.sampleUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleVoicePreview(voice);
+                            }}
+                            disabled={!voice.sampleUrl}
+                            className="h-8 w-8 p-0 hover:bg-blue-100/50"
+                          >
+                            {currentlyPlaying === voice.id ? (
+                              <Pause className="h-4 w-4 text-blue-600" />
+                            ) : (
+                              <Play className="h-4 w-4 text-blue-600" />
+                            )}
+                          </Button>
                         )}
-                      </Button>
-                    )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                {selectedVoiceId === voice.id && (
-                  <div className="mt-2 pt-2 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground">Selected for campaign</p>
+                ))}
+
+                {(!voicesData?.voices || voicesData.voices.length === 0) && (
+                  <div className="glass-card border-gradient p-8 text-center">
+                    <Mic2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gradient mb-2">No Voices Available</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Upload a voice sample to create your first custom voice.
+                    </p>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        )}
+            )}
+          </TabsContent>
 
-        {/* Clone Voice Form */}
-        {activeTab === "clone" && (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="voice-name">Voice Name</Label>
-              <Input
-                id="voice-name"
-                value={cloneName}
-                onChange={(e) => setCloneName(e.target.value)}
-                placeholder="e.g., Sales Agent Voice"
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="voice-description">Description (Optional)</Label>
-              <Input
-                id="voice-description"
-                value={cloneDescription}
-                onChange={(e) => setCloneDescription(e.target.value)}
-                placeholder="e.g., Professional and friendly sales voice"
-                className="mt-1.5"
-              />
-            </div>
-            <div
-              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => document.getElementById('voice-upload')?.click()}
-            >
-              <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
-              <p className="text-sm font-medium text-foreground mb-2">Upload Voice Sample</p>
-              <p className="text-xs text-muted-foreground mb-4">MP3 or WAV file, max 50MB</p>
-              <Button
-                variant="secondary"
-                disabled={cloneVoiceMutation.isPending}
+          <TabsContent value="clone" className="space-y-6">
+            {/* Voice Clone Upload */}
+            <div className="p-6 bg-gradient-to-br from-purple-50/50 to-pink-50/30 border border-purple-200/50 rounded-xl">
+              <h4 className="font-medium text-gradient-secondary mb-4 flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <Upload className="h-4 w-4 text-white" />
+                </div>
+                <span>Create Custom Voice</span>
+              </h4>
+              <div
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer relative overflow-hidden ${
+                  isDragging 
+                    ? "border-primary bg-gradient-to-br from-blue-50 to-purple-50 scale-105" 
+                    : "border-border/50 hover:border-primary/50 hover:bg-gradient-to-br hover:from-purple-50/30 hover:to-pink-50/20"
+                }`}
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onClick={() => document.getElementById('voice-upload')?.click()}
               >
-                {cloneVoiceMutation.isPending ? "Uploading..." : "Choose File"}
-              </Button>
-              <input
-                id="voice-upload"
-                type="file"
-                accept="audio/*"
-                className="hidden"
-                onChange={handleFileInput}
-              />
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-100/20 via-pink-100/20 to-indigo-100/20 opacity-0 hover:opacity-100 transition-opacity duration-500" />
+                
+                <div className="relative z-10">
+                  <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg hover:scale-110 transition-transform duration-300">
+                    <Upload className="h-8 w-8 text-white" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-gradient mb-2">Upload Voice Sample</h4>
+                  <p className="text-sm font-medium text-slate-600 mb-1">Drag and drop your audio file here, or click to browse</p>
+                  <p className="text-xs text-slate-500">Supports MP3, WAV, M4A files • High-quality audio for best results</p>
+                </div>
+                <input
+                  id="voice-upload"
+                  type="file"
+                  accept=".mp3,.wav,.m4a"
+                  className="hidden"
+                  onChange={handleFileInput}
+                />
+              </div>
+              
+              <div className="mt-4 p-4 bg-blue-50/50 border border-blue-200/50 rounded-lg">
+                <h5 className="font-medium text-blue-900 mb-2 flex items-center space-x-2">
+                  <Mic2 className="h-4 w-4" />
+                  <span>Voice Cloning Tips</span>
+                </h5>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• Use clear, high-quality audio (at least 1 minute)</li>
+                  <li>• Avoid background noise and music</li>
+                  <li>• Include various emotions and tones</li>
+                  <li>• Speak naturally with proper pronunciation</li>
+                </ul>
+              </div>
             </div>
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
+
+        {/* Voice Clone Dialog */}
+        <Dialog open={showCloneDialog} onOpenChange={setShowCloneDialog}>
+          <DialogContent className="glass-card border-gradient">
+            <DialogHeader>
+              <DialogTitle className="text-gradient">Create Custom Voice</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="voice-name">Voice Name</Label>
+                <Input
+                  id="voice-name"
+                  value={voiceName}
+                  onChange={(e) => setVoiceName(e.target.value)}
+                  placeholder="Enter a name for this voice"
+                  className="input-gradient"
+                />
+              </div>
+              <div>
+                <Label htmlFor="voice-description">Description (optional)</Label>
+                <Input
+                  id="voice-description"
+                  value={voiceDescription}
+                  onChange={(e) => setVoiceDescription(e.target.value)}
+                  placeholder="Describe this voice"
+                  className="input-gradient"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCloneDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleConfirmClone}
+                disabled={cloneMutation.isPending || !voiceName.trim()}
+                className="btn-gradient"
+              >
+                {cloneMutation.isPending ? "Creating..." : "Create Voice"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

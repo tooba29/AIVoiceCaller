@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import Dashboard from "@/pages/dashboard";
 import Campaigns from "@/pages/campaigns";
+import CampaignDetails from "@/pages/campaign-details";
 import Voices from "@/pages/voices";
 import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
@@ -35,6 +36,7 @@ function AuthenticatedRouter() {
       <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/campaigns" component={Campaigns} />
+      <Route path="/campaigns/:id" component={CampaignDetails} />
       <Route path="/voices" component={Voices} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/login" component={Login} />

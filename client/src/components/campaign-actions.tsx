@@ -89,50 +89,25 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
   };
 
   const handleStartCampaign = () => {
-    if (!campaign?.firstPrompt) {
+    if (!campaign || !selectedVoiceId || uploadedLeads.length === 0) {
       toast({
-        title: "Initial Message Required",
-        description: "Please set an initial message for the campaign.",
+        title: "Cannot Start Campaign",
+        description: "Please ensure you have selected a voice and uploaded leads before starting the campaign.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!selectedVoiceId) {
-      toast({
-        title: "Voice Required",
-        description: "Please select a voice for the campaign.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Start campaign logic here
+    console.log("Starting campaign with:", {
+      campaignId: campaign.id,
+      voiceId: selectedVoiceId,
+      leadsCount: uploadedLeads.length,
+    });
 
-    if (!campaign?.knowledgeBaseId) {
-      toast({
-        title: "Knowledge Base Required",
-        description: "Please upload a knowledge base PDF file.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (uploadedLeads.length === 0) {
-      toast({
-        title: "Leads Required",
-        description: "Please upload leads CSV file before starting the campaign.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const confirmMessage = `Are you sure you want to start the campaign?\n\nThis will:\n- Use the selected voice (${selectedVoiceId})\n- Process ${uploadedLeads.length} leads\n- Use the uploaded knowledge base\n- Start with: "${campaign.firstPrompt}"`;
-    
-    if (window.confirm(confirmMessage)) {
-      startCampaignMutation.mutate(campaign.id);
-    }
+    // Actually trigger the campaign start
+    startCampaignMutation.mutate(campaign.id);
   };
-
-  const estimatedDuration = Math.ceil(uploadedLeads.length * 2.5 / 60); // Assume 2.5 minutes per call average
 
   const isReadyToLaunch = campaign?.firstPrompt && selectedVoiceId && campaign?.knowledgeBaseId && uploadedLeads.length > 0;
 

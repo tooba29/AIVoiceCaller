@@ -14,10 +14,34 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, Plus, Play, Pause, Square, MoreHorizontal, Edit2, Check, X, Upload, MessageSquare, Trash2 } from "lucide-react";
+import { Search, Play, Pause, Square, Edit2, Check, X, Upload, MessageSquare, Trash2, Eye, Plus, Phone, Edit } from "lucide-react";
+import { useLocation } from "wouter";
 import { api, type Campaign } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
+
+// Utility functions
+const getStatusBadgeClasses = (status: string) => {
+  switch (status) {
+    case "active":
+      return "border-green-200 bg-green-50 text-green-700";
+    case "paused":
+      return "border-yellow-200 bg-yellow-50 text-yellow-700";
+    case "completed":
+      return "border-blue-200 bg-blue-50 text-blue-700";
+    case "draft":
+      return "border-gray-200 bg-gray-50 text-gray-700";
+    default:
+      return "border-gray-200 bg-gray-50 text-gray-700";
+  }
+};
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  return date.toLocaleDateString();
+};
 
 export default function Campaigns() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -30,6 +54,9 @@ export default function Campaigns() {
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState("");
 
   const { data: campaignsData, isLoading } = useQuery({
     queryKey: ["/api/campaigns"],
@@ -48,6 +75,8 @@ export default function Campaigns() {
       });
       setEditingCampaign(null);
       setShowGreetingDialog(false);
+      setShowCreateDialog(false); // Close the create/edit dialog
+      setNewCampaignName(""); // Clear the input field
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
     onError: (error: any) => {
@@ -164,6 +193,7 @@ export default function Campaigns() {
   const handleCancelEdit = () => {
     setEditingCampaign(null);
     setEditName("");
+    setNewCampaignName(""); // Clear the campaign name input
   };
 
   const handleFileUpload = (campaignId: number, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,6 +229,10 @@ export default function Campaigns() {
     deleteCampaignMutation.mutate(campaignToDelete.id);
   };
 
+  const handleViewDetails = (campaignId: number) => {
+    setLocation(`/campaigns/${campaignId}`);
+  };
+
   const filteredCampaigns = (campaignsData?.campaigns as Campaign[] || []).filter((campaign: Campaign) =>
     campaign.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -206,15 +240,15 @@ export default function Campaigns() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+        return "bg-green-100 text-green-700";
       case "paused":
-        return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300";
+        return "bg-yellow-100 text-yellow-700";
       case "completed":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300";
+        return "bg-blue-100 text-blue-700";
       case "draft":
-        return "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+        return "bg-gray-100 text-gray-700";
       default:
-        return "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+        return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -223,222 +257,260 @@ export default function Campaigns() {
     return Math.round(((campaign.completedCalls || 0) / campaign.totalLeads) * 100);
   };
 
+  const handleCreateCampaign = () => {
+    if (!newCampaignName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Campaign name cannot be empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateCampaignMutation.mutate({
+      id: 0,
+      updates: { name: newCampaignName.trim() }
+    });
+  };
+
+  const handleUpdateCampaign = () => {
+    if (!editingCampaign) {
+      toast({
+        title: "Error",
+        description: "No campaign selected for editing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newCampaignName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Campaign name cannot be empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateCampaignMutation.mutate({
+      id: editingCampaign,
+      updates: { name: newCampaignName.trim() }
+    });
+  };
+
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
       
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-card border-b border-border px-8 py-6">
+        {/* Header */}
+        <header className="bg-gradient-to-r from-white/90 via-blue-50/80 to-purple-50/60 backdrop-blur-xl border-b border-white/20 px-8 py-6 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">
-                Campaigns
+              <h2 className="text-4xl font-bold text-gradient mb-2">
+                Campaign Management
               </h2>
-              <p className="text-muted-foreground mt-2">Manage all your voice calling campaigns</p>
+              <p className="text-muted-foreground/80 text-lg">Create and manage your AI voice calling campaigns</p>
             </div>
-            <Button className="bg-primary hover:bg-primary/90 shadow-lg">
-              <Plus className="h-4 w-4 mr-2" />
-              New Campaign
-            </Button>
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={() => setShowCreateDialog(true)}
+                className="btn-gradient hover-lift shadow-lg"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                New Campaign
+              </Button>
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-8 bg-background">
-          <div className="max-w-7xl mx-auto space-y-6">
-            
-            {/* Search and Filters */}
-            <div className="flex items-center space-x-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search campaigns..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Campaigns Grid */}
+        <main className="flex-1 overflow-auto p-8 bg-gradient-to-br from-slate-50/50 via-blue-50/30 to-indigo-50/20">
+          <div className="max-w-7xl mx-auto">
             {isLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-sm text-muted-foreground">Loading campaigns...</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                {[...Array(6)].map((_, i) => (
+                  <Card key={i} className="glass-card border-gradient">
+                    <CardContent className="p-6">
+                      <div className="animate-pulse">
+                        <div className="h-6 bg-gradient-to-r from-blue-300 to-purple-300 rounded w-3/4 mb-4 shimmer"></div>
+                        <div className="h-4 bg-gradient-to-r from-indigo-300 to-pink-300 rounded w-1/2 mb-4 shimmer"></div>
+                        <div className="space-y-2">
+                          <div className="h-3 bg-gradient-to-r from-slate-300 to-gray-300 rounded w-full shimmer"></div>
+                          <div className="h-3 bg-gradient-to-r from-slate-300 to-gray-300 rounded w-2/3 shimmer"></div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            ) : filteredCampaigns.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No campaigns found</p>
+            ) : campaignsData?.campaigns.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="glass-card border-gradient p-12 max-w-md mx-auto">
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                    <Phone className="h-10 w-10 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gradient mb-4">No Campaigns Yet</h3>
+                  <p className="text-muted-foreground/80 mb-6">
+                    Create your first AI voice calling campaign to get started with automated outreach.
+                  </p>
+                  <Button
+                    onClick={() => setShowCreateDialog(true)}
+                    className="btn-gradient hover-lift shadow-lg"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Create Your First Campaign
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredCampaigns.map((campaign: Campaign) => (
-                  <Card key={campaign.id} className="border border-border bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 shadow-lg hover:shadow-xl">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg font-semibold text-foreground truncate">
-                          {editingCampaign === campaign.id ? (
-                            <div className="flex items-center space-x-2">
-                              <Input
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="text-base"
-                                autoFocus
-                              />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleSaveEdit(campaign.id)}
-                                disabled={updateCampaignMutation.isPending}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleCancelEdit}
-                                disabled={updateCampaignMutation.isPending}
-                              >
-                                <X className="h-4 w-4 text-red-600" />
-                              </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                {campaignsData?.campaigns.map((campaign: Campaign) => (
+                  <Card 
+                    key={campaign.id} 
+                    className="glass-card border-gradient hover:shadow-2xl transition-all duration-300 group cursor-pointer relative overflow-hidden"
+                    onClick={() => handleViewDetails(campaign.id)}
+                  >
+                    {/* Background gradient animation */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 via-purple-50/10 to-indigo-50/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    {/* Status indicator */}
+                    <div className="absolute top-4 right-4 z-10">
+                      {campaign.status === 'active' && (
+                        <div className="w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full animate-pulse shadow-lg"></div>
+                      )}
+                      {campaign.status === 'paused' && (
+                        <div className="w-3 h-3 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full shadow-lg"></div>
+                      )}
+                      {campaign.status === 'completed' && (
+                        <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full shadow-lg"></div>
+                      )}
+                    </div>
+
+                    <CardContent className="p-6 relative z-10">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-gradient mb-2 group-hover:text-blue-600 transition-colors duration-300">
+                            {campaign.name}
+                          </h3>
+                          <div className="flex items-center space-x-2 mb-3">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClasses(campaign.status)}`}>
+                              {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
+                            </span>
+                            <span className="text-xs text-muted-foreground/70">
+                              Created {formatDate(campaign.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Campaign metrics */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="text-center p-3 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 rounded-xl border border-blue-100/50">
+                            <div className="text-2xl font-bold text-gradient-primary">
+                              {campaign.completedCalls || 0}
                             </div>
-                          ) : (
-                            campaign.name
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center space-x-2">
-                          <Badge className={getStatusColor(campaign.status)}>
-                            {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
-                          </Badge>
-                          {!editingCampaign && (
+                            <div className="text-xs text-muted-foreground/70 font-medium">Total Calls</div>
+                          </div>
+                          <div className="text-center p-3 bg-gradient-to-br from-green-50/50 to-emerald-50/30 rounded-xl border border-green-100/50">
+                            <div className="text-2xl font-bold text-gradient-success">
+                              {campaign.successfulCalls || 0}
+                            </div>
+                            <div className="text-xs text-muted-foreground/70 font-medium">Successful</div>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground/70 font-medium">Progress</span>
+                            <span className="text-muted-foreground/70 font-medium">
+                              {campaign.totalLeads > 0 
+                                ? Math.round((campaign.completedCalls / campaign.totalLeads) * 100)
+                                : 0}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gradient-to-r from-slate-200 to-gray-200 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500 shadow-sm"
+                              style={{
+                                width: `${campaign.totalLeads > 0 
+                                  ? Math.round((campaign.completedCalls / campaign.totalLeads) * 100)
+                                  : 0}%`
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="flex items-center space-x-2">
+                            {campaign.status === 'active' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusUpdate(campaign.id, "paused");
+                                }}
+                                className="h-8 px-3 border-orange-200 text-orange-700 hover:bg-orange-50"
+                              >
+                                <Pause className="h-3 w-3 mr-1" />
+                                Pause
+                              </Button>
+                            )}
+                            {campaign.status === 'paused' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusUpdate(campaign.id, "active");
+                                }}
+                                className="h-8 px-3 border-green-200 text-green-700 hover:bg-green-50"
+                              >
+                                <Play className="h-3 w-3 mr-1" />
+                                Resume
+                              </Button>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center space-x-1">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleEditClick(campaign)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewDetails(campaign.id);
+                              }}
+                              className="h-8 w-8 p-0 hover:bg-blue-100/50"
                             >
-                              <Edit2 className="h-4 w-4" />
+                              <Eye className="h-4 w-4 text-blue-600" />
                             </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      
-                      {/* Progress */}
-                      <div>
-                        <div className="flex items-center justify-between text-sm mb-2">
-                          <span className="text-muted-foreground">Progress</span>
-                          <span className="text-foreground font-medium">
-                            {campaign.completedCalls || 0} / {campaign.totalLeads} calls
-                          </span>
-                        </div>
-                        <Progress value={getProgressPercentage(campaign)} className="h-2" />
-                      </div>
-
-                      {/* Stats */}
-                      <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="p-2 bg-accent/50 rounded-lg">
-                          <p className="text-lg font-semibold text-foreground">{campaign.successfulCalls || 0}</p>
-                          <p className="text-xs text-green-600">Success</p>
-                        </div>
-                        <div className="p-2 bg-accent/50 rounded-lg">
-                          <p className="text-lg font-semibold text-foreground">{campaign.failedCalls || 0}</p>
-                          <p className="text-xs text-red-600">Failed</p>
-                        </div>
-                        <div className="p-2 bg-accent/50 rounded-lg">
-                          <p className="text-lg font-semibold text-foreground">
-                            {campaign.totalLeads - (campaign.completedCalls || 0)}
-                          </p>
-                          <p className="text-xs text-yellow-600">Pending</p>
-                        </div>
-                      </div>
-
-                      {/* Edit Actions */}
-                      <div className="flex items-center justify-between border-t border-border pt-4">
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditGreeting(campaign)}
-                          >
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                            Edit Greeting
-                          </Button>
-                          <label className="cursor-pointer">
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => document.getElementById(`csv-upload-${campaign.id}`)?.click()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCampaign(campaign.id);
+                                setNewCampaignName(campaign.name); // Pre-populate with current name
+                                setShowCreateDialog(true);
+                              }}
+                              className="h-8 w-8 p-0 hover:bg-blue-100/50"
                             >
-                              <Upload className="h-3 w-3 mr-1" />
-                              Update Leads
+                              <Edit className="h-4 w-4 text-blue-600" />
                             </Button>
-                            <input
-                              id={`csv-upload-${campaign.id}`}
-                              type="file"
-                              accept=".csv"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(campaign.id, e)}
-                            />
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Campaign Control Actions */}
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex items-center space-x-2">
-                          {campaign.status === "active" && (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => handleStatusUpdate(campaign.id, "paused")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCampaignToDelete(campaign);
+                                setShowDeleteDialog(true);
+                              }}
+                              className="h-8 w-8 p-0 hover:bg-red-100/50"
                             >
-                              <Pause className="h-3 w-3 mr-1" />
-                              Pause
+                              <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
-                          )}
-                          {campaign.status === "paused" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStatusUpdate(campaign.id, "active")}
-                            >
-                              <Play className="h-3 w-3 mr-1" />
-                              Resume
-                            </Button>
-                          )}
-                          {campaign.status === "draft" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStatusUpdate(campaign.id, "active")}
-                            >
-                              <Play className="h-3 w-3 mr-1" />
-                              Start
-                            </Button>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleStatusUpdate(campaign.id, "stopped")}
-                        >
-                          <Square className="h-3 w-3" />
-                        </Button>
-                      </div>
-
-                      {/* Add Delete Button */}
-                      <div className="flex items-center justify-between border-t border-border pt-4">
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteClick(campaign)}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete
-                          </Button>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -450,64 +522,75 @@ export default function Campaigns() {
         </main>
       </div>
 
-      {/* Greeting Edit Dialog */}
-      <Dialog open={showGreetingDialog} onOpenChange={setShowGreetingDialog}>
-        <DialogContent>
+      {/* Create/Edit Campaign Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="glass-card border-gradient max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Greeting Message</DialogTitle>
+            <DialogTitle className="text-gradient">
+              {editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <Textarea
-              value={editGreeting}
-              onChange={(e) => setEditGreeting(e.target.value)}
-              placeholder="Enter the greeting message..."
-              rows={4}
-            />
-            <div className="flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowGreetingDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveGreeting}
-                disabled={updateCampaignMutation.isPending}
-              >
-                {updateCampaignMutation.isPending ? "Saving..." : "Save Changes"}
-              </Button>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="campaign-name">Campaign Name</Label>
+              <Input
+                id="campaign-name"
+                value={newCampaignName}
+                onChange={(e) => setNewCampaignName(e.target.value)}
+                placeholder="Enter campaign name"
+                className="input-gradient"
+              />
             </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelEdit}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={editingCampaign ? handleUpdateCampaign : handleCreateCampaign}
+              disabled={updateCampaignMutation.isPending || !newCampaignName.trim()}
+              className="btn-gradient"
+            >
+              {(updateCampaignMutation.isPending) ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                editingCampaign ? 'Update Campaign' : 'Create Campaign'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="glass-card border-gradient">
           <DialogHeader>
-            <DialogTitle>Delete Campaign</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{campaignToDelete?.name}"? This action cannot be undone.
-              {campaignToDelete?.status === "active" && (
-                <p className="text-destructive mt-2">
-                  This campaign is currently active. Please stop it before deleting.
-                </p>
-              )}
-            </DialogDescription>
+            <DialogTitle className="text-gradient">Delete Campaign</DialogTitle>
           </DialogHeader>
-          <DialogFooter className="space-x-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-            >
+          <p className="text-muted-foreground">
+            Are you sure you want to delete this campaign? This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
+            <Button 
+              variant="destructive" 
               onClick={handleConfirmDelete}
-              disabled={deleteCampaignMutation.isPending || campaignToDelete?.status === "active"}
+              disabled={deleteCampaignMutation.isPending}
+              className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700"
             >
-              {deleteCampaignMutation.isPending ? "Deleting..." : "Delete Campaign"}
+              {deleteCampaignMutation.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Deleting...
+                </>
+              ) : (
+                'Delete Campaign'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

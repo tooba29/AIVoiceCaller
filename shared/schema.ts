@@ -56,6 +56,7 @@ export const callLogs = pgTable("call_logs", {
   status: text("status"),
   duration: integer("duration"),
   twilioCallSid: text("twilio_call_sid"),
+  elevenLabsConversationId: text("elevenlabs_conversation_id"),
   createdAt: timestamp("created_at").defaultNow()
 });
 

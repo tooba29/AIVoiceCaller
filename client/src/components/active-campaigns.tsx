@@ -40,28 +40,11 @@ export default function ActiveCampaigns() {
 
   const getProgressPercentage = (campaign: Campaign) => {
     if (campaign.totalLeads === 0) return 0;
-    return Math.round((campaign.completedCalls / campaign.totalLeads) * 100);
-  };
-
-  const getSuccessRate = (campaign: Campaign) => {
-    if (campaign.completedCalls === 0) return "0%";
-    return Math.round((campaign.successfulCalls / campaign.completedCalls) * 100) + "%";
+    return Math.round(((campaign.completedCalls || 0) / campaign.totalLeads) * 100);
   };
 
   const getAverageDuration = (campaign: Campaign) => {
-    if (!campaign.averageDuration || campaign.averageDuration === 0) {
-      return "0m";
-    }
-    
-    // Convert seconds to minutes and seconds
-    const minutes = Math.floor(campaign.averageDuration / 60);
-    const seconds = campaign.averageDuration % 60;
-    
-    if (minutes > 0) {
-      return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-    } else {
-      return `${seconds}s`;
-    }
+    return campaign.averageDuration ? `${Math.round(campaign.averageDuration / 60)}m` : "N/A";
   };
 
   if (isLoading) {

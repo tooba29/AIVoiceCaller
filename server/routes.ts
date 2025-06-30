@@ -95,6 +95,29 @@ interface ElevenLabsMessage {
   user_transcription_event?: {
     user_transcript: string;
   };
+  conversation_initiation_metadata?: {
+    conversation_id?: string;
+    agent_id?: string;
+    [key: string]: any; // Allow other fields
+  };
+  conversation_initiation_metadata_event?: {
+    conversation_id?: string;
+    agent_output_audio_format?: string;
+    user_input_audio_format?: string;
+    [key: string]: any;
+  };
+  // Add possible alternative formats
+  conversation_id?: string;
+  metadata?: {
+    conversation_id?: string;
+    [key: string]: any;
+  };
+  data?: {
+    conversation_id?: string;
+    [key: string]: any;
+  };
+  // Allow any additional fields
+  [key: string]: any;
 }
 
 interface TwilioMessage {
@@ -594,26 +617,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete all leads for a campaign
+    // Delete all leads for a campaign
   app.delete("/api/campaigns/:id/leads", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
+      console.log(`[Delete Leads] Starting deletion for campaign ${campaignId} by user ${req.user?.id}`);
       
       // Check campaign ownership
       const campaign = await storage.getCampaign(campaignId);
       if (!campaign || campaign.userId !== req.user!.id) {
+        console.log(`[Delete Leads] Campaign ${campaignId} not found or access denied`);
         return res.status(404).json({ error: "Campaign not found" });
       }
       
+      console.log(`[Delete Leads] Campaign found: ${campaign.name}`);
+      
       // Get all leads for the campaign
       const leads = await storage.getLeadsByCampaign(campaignId);
+      console.log(`[Delete Leads] Found ${leads.length} leads to delete`);
       
-      // Delete all leads
-      for (const lead of leads) {
-        await storage.deleteLead(lead.id);
+      if (leads.length === 0) {
+        console.log(`[Delete Leads] No leads to delete for campaign ${campaignId}`);
+        return res.json({ 
+          success: true, 
+          message: "No leads to delete",
+          deletedCount: 0 
+        });
       }
       
+      // First, delete all call logs associated with these leads
+      console.log(`[Delete Leads] Deleting call logs for campaign ${campaignId}`);
+      const callLogs = await storage.getCallLogsByCampaign(campaignId);
+      console.log(`[Delete Leads] Found ${callLogs.length} call logs to delete`);
+      
+      let deletedCallLogsCount = 0;
+      for (const callLog of callLogs) {
+        try {
+          console.log(`[Delete Leads] Deleting call log ${callLog.id}`);
+          await storage.deleteCallLog(callLog.id);
+          deletedCallLogsCount++;
+        } catch (callLogError) {
+          console.error(`[Delete Leads] Failed to delete call log ${callLog.id}:`, callLogError);
+          // Continue with other call logs instead of failing completely
+        }
+      }
+      
+      console.log(`[Delete Leads] Successfully deleted ${deletedCallLogsCount} call logs`);
+      
+      // Now delete all leads
+      let deletedLeadsCount = 0;
+      for (const lead of leads) {
+        try {
+          console.log(`[Delete Leads] Deleting lead ${lead.id} (${lead.firstName} ${lead.lastName})`);
+          await storage.deleteLead(lead.id);
+          deletedLeadsCount++;
+        } catch (leadError) {
+          console.error(`[Delete Leads] Failed to delete lead ${lead.id}:`, leadError);
+          throw leadError; // Re-throw to trigger the outer catch
+        }
+      }
+      
+      console.log(`[Delete Leads] Successfully deleted ${deletedLeadsCount} leads`);
+      
       // Update campaign lead count
+      console.log(`[Delete Leads] Updating campaign stats for campaign ${campaignId}`);
       await storage.updateCampaign(campaignId, {
         totalLeads: 0,
         completedCalls: 0,
@@ -621,14 +688,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         failedCalls: 0
       });
       
+      console.log(`[Delete Leads] Campaign ${campaignId} updated successfully`);
+      
       res.json({ 
         success: true, 
-        message: `Deleted ${leads.length} leads`,
-        deletedCount: leads.length 
+        message: `Deleted ${deletedLeadsCount} leads and ${deletedCallLogsCount} call logs`,
+        deletedLeadsCount: deletedLeadsCount,
+        deletedCallLogsCount: deletedCallLogsCount
       });
     } catch (error) {
-      console.error('Delete leads error:', error);
-      res.status(500).json({ error: "Failed to delete leads" });
+      console.error('Delete leads error:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        campaignId: req.params.id,
+        userId: req.user?.id,
+        timestamp: new Date().toISOString()
+      });
+      res.status(500).json({ 
+        error: "Failed to delete leads",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -746,32 +825,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Update or create campaign
-      let campaign;
+      // Update campaign (campaignId is now required)
+      let campaign = null;
       if (campaignId) {
+        // Verify ownership before updating
+        const existingCampaign = await storage.getCampaign(parseInt(campaignId));
+        if (!existingCampaign || existingCampaign.userId !== req.user!.id) {
+          return res.status(404).json({ error: "Campaign not found or access denied" });
+        }
+        
         campaign = await storage.updateCampaign(parseInt(campaignId), {
           firstPrompt,
           systemPersona,
           selectedVoiceId: voiceId
         });
       } else {
-        const userId = req.user?.id;
-        if (!userId) {
-          return res.status(401).json({ error: "User not authenticated" });
-        }
-        
-        campaign = await storage.createCampaign({
-          name: `Campaign ${Date.now()}`,
-          userId: userId,
-          firstPrompt: "",
-          systemPersona: "",
-          selectedVoiceId: null,
-          status: "draft",
-          createdAt: null,
-          totalLeads: null,
-          completedCalls: null,
-          successfulCalls: null,
-          failedCalls: null
+        return res.status(400).json({ 
+          error: "Campaign ID is required. Please create a campaign first using the campaign selector." 
         });
       }
 
@@ -1136,7 +1206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Make Test Call
-  app.post("/api/make-outbound-call", async (req, res) => {
+  app.post("/api/make-outbound-call", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const validation = testCallSchema.safeParse(req.body);
       if (!validation.success) {
@@ -1145,11 +1215,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { phoneNumber, campaignId, firstName } = validation.data;
 
-      // Get campaign for first prompt
+      // Get campaign for first prompt and verify ownership
       const campaign = campaignId ? await storage.getCampaign(campaignId) : null;
 
       if (!campaignId) {
         return res.status(400).json({ error: "campaignId is required for test calls" });
+      }
+
+      if (!campaign || campaign.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Campaign not found" });
       }
 
       console.log("[Backend] Triggering test call for", firstName);
@@ -1231,7 +1305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start Campaign
-  app.post("/api/start-campaign", async (req, res) => {
+  app.post("/api/start-campaign", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { campaignId } = req.body;
       if (!campaignId) {
@@ -1239,7 +1313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
+      if (!campaign || campaign.userId !== req.user!.id) {
         return res.status(404).json({ error: "Campaign not found" });
       }
 
@@ -1261,7 +1335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Start processing calls asynchronously
-      processCanpaign(campaignId);
+      processcamp(campaignId);
 
       res.json({ 
         success: true, 
@@ -1281,33 +1355,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reset Campaign Stats (utility endpoint)
-  app.post("/api/campaigns/:id/reset-stats", async (req, res) => {
+  // Reset Campaign Stats (utility endpoint) - Fixed logic
+  app.post("/api/campaigns/:id/reset-stats", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
       
       const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
+      if (!campaign || campaign.userId !== req.user!.id) {
         return res.status(404).json({ error: "Campaign not found" });
       }
 
+      // Get all leads and call logs for accurate calculation
       const leads = await storage.getLeadsByCampaign(campaignId);
-      const completedLeads = leads.filter(l => l.status === 'completed');
-      const failedLeads = leads.filter(l => l.status === 'failed');
+      const callLogs = await storage.getCallLogsByCampaign(campaignId);
       
+      // Calculate stats based on ACTUAL call logs, not lead status
+      const completedCallLogs = callLogs.filter(log => log.status === 'completed');
+      const failedCallLogs = callLogs.filter(log => 
+        log.status === 'failed' || 
+        log.status === 'busy' || 
+        log.status === 'no-answer'
+      );
+      
+      // Calculate successful calls (completed calls > 3 seconds)
+      const successfulCallLogs = completedCallLogs.filter(log => 
+        (log.duration || 0) > 3
+      );
+      
+      console.log(`[Reset Stats] Campaign ${campaignId}:`, {
+        totalLeads: leads.length,
+        totalCallLogs: callLogs.length,
+        completedCalls: completedCallLogs.length,
+        successfulCalls: successfulCallLogs.length,
+        failedCalls: failedCallLogs.length,
+        callLogDetails: callLogs.map(log => ({
+          id: log.id,
+          status: log.status,
+          duration: log.duration,
+          leadId: log.leadId
+        }))
+      });
+      
+      // Reset campaign stats with correct calculations
       await storage.updateCampaign(campaignId, {
         totalLeads: leads.length,
-        completedCalls: completedLeads.length + failedLeads.length,
-        successfulCalls: completedLeads.length,
-        failedCalls: failedLeads.length
+        completedCalls: completedCallLogs.length,        // Calls that connected
+        successfulCalls: successfulCallLogs.length,       // Completed calls > 3 seconds  
+        failedCalls: failedCallLogs.length                // Calls that never connected
       });
 
       const updatedCampaign = await storage.getCampaign(campaignId);
       
       res.json({ 
         success: true, 
-        message: "Campaign stats reset successfully",
-        campaign: updatedCampaign
+        message: `Campaign stats recalculated: ${completedCallLogs.length} completed, ${successfulCallLogs.length} successful, ${failedCallLogs.length} failed`,
+        campaign: updatedCampaign,
+        debug: {
+          oldStats: {
+            completedCalls: campaign.completedCalls,
+            successfulCalls: campaign.successfulCalls,
+            failedCalls: campaign.failedCalls
+          },
+          newStats: {
+            completedCalls: completedCallLogs.length,
+            successfulCalls: successfulCallLogs.length,
+            failedCalls: failedCallLogs.length
+          }
+        }
       });
     } catch (error) {
       console.error('Reset stats error:', error);
@@ -1315,20 +1429,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get Campaign Details
-  app.get("/api/campaigns/:id", async (req, res) => {
+  // Bulk Reset All Campaign Stats (fix all campaigns for user)
+  app.post("/api/campaigns/reset-all-stats", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      
+      // Get all campaigns for this user
+      const userCampaigns = await storage.getAllCampaigns(userId);
+      
+      const results = [];
+      let totalFixed = 0;
+      
+      for (const campaign of userCampaigns) {
+        try {
+          // Get all leads and call logs for accurate calculation
+          const leads = await storage.getLeadsByCampaign(campaign.id);
+          const callLogs = await storage.getCallLogsByCampaign(campaign.id);
+          
+          // Calculate stats based on ACTUAL call logs, not lead status
+          const completedCallLogs = callLogs.filter(log => log.status === 'completed');
+          const failedCallLogs = callLogs.filter(log => 
+            log.status === 'failed' || 
+            log.status === 'busy' || 
+            log.status === 'no-answer'
+          );
+          
+          // Calculate successful calls (completed calls > 3 seconds)
+          const successfulCallLogs = completedCallLogs.filter(log => 
+            (log.duration || 0) > 3
+          );
+          
+          const oldStats = {
+            completedCalls: campaign.completedCalls || 0,
+            successfulCalls: campaign.successfulCalls || 0,
+            failedCalls: campaign.failedCalls || 0
+          };
+          
+          const newStats = {
+            completedCalls: completedCallLogs.length,
+            successfulCalls: successfulCallLogs.length,
+            failedCalls: failedCallLogs.length
+          };
+          
+          // Only update if stats have changed
+          const hasChanges = (
+            oldStats.completedCalls !== newStats.completedCalls ||
+            oldStats.successfulCalls !== newStats.successfulCalls ||
+            oldStats.failedCalls !== newStats.failedCalls
+          );
+          
+          if (hasChanges) {
+            await storage.updateCampaign(campaign.id, {
+              totalLeads: leads.length,
+              completedCalls: newStats.completedCalls,
+              successfulCalls: newStats.successfulCalls,
+              failedCalls: newStats.failedCalls
+            });
+            totalFixed++;
+          }
+          
+          results.push({
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            hasChanges,
+            oldStats,
+            newStats
+          });
+          
+        } catch (error) {
+          console.error(`Error resetting stats for campaign ${campaign.id}:`, error);
+          results.push({
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Fixed statistics for ${totalFixed} out of ${userCampaigns.length} campaigns`,
+        totalCampaigns: userCampaigns.length,
+        totalFixed,
+        results
+      });
+    } catch (error) {
+      console.error('Bulk reset stats error:', error);
+      res.status(500).json({ error: "Failed to reset campaign stats" });
+    }
+  });
+
+  // Get Campaign Details (Enhanced endpoint with leads and call logs)
+  app.get("/api/campaigns/:id/details", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const campaignId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      
+      console.log(`[Campaign Details] Fetching details for campaign ${campaignId} by user ${userId}`);
+      
       const campaign = await storage.getCampaign(campaignId);
       
-      if (!campaign) {
+      if (!campaign || campaign.userId !== userId) {
+        console.error(`[Campaign Details] Campaign not found or access denied - Campaign exists: ${!!campaign}, Campaign userId: ${campaign?.userId}, Request userId: ${userId}`);
         return res.status(404).json({ error: "Campaign not found" });
       }
 
       const leads = await storage.getLeadsByCampaign(campaignId);
       const callLogs = await storage.getCallLogsByCampaign(campaignId);
+      
+      console.log(`[Campaign Details] Data summary:`, {
+        campaignName: campaign.name,
+        totalLeads: leads.length,
+        totalCallLogs: callLogs.length,
+        callLogsWithConversationId: callLogs.filter(log => log.elevenLabsConversationId).length
+      });
+      
+      // Log conversation IDs for debugging
+      const conversationsWithIds = callLogs.filter(log => log.elevenLabsConversationId);
+      if (conversationsWithIds.length > 0) {
+        console.log(`[Campaign Details] ✅ Found ${conversationsWithIds.length} conversations with IDs:`, 
+          conversationsWithIds.map(log => ({
+            callLogId: log.id,
+            leadId: log.leadId,
+            status: log.status,
+            conversationId: log.elevenLabsConversationId,
+            duration: log.duration
+          }))
+        );
+      } else {
+        console.log(`[Campaign Details] ❌ No conversations with conversation IDs found`);
+        
+        // Debug: Show all call logs for this campaign
+        console.log(`[Campaign Details] All call logs for campaign:`, 
+          callLogs.map(log => ({
+            id: log.id,
+            leadId: log.leadId,
+            status: log.status,
+            twilioCallSid: log.twilioCallSid,
+            conversationId: log.elevenLabsConversationId,
+            duration: log.duration,
+            createdAt: log.createdAt
+          }))
+        );
+      }
 
-      res.json({ 
+      const responseData = { 
         campaign,
         leads,
         callLogs,
@@ -1338,21 +1583,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
           completed: leads.filter(l => l.status === 'completed').length,
           failed: leads.filter(l => l.status === 'failed').length,
         }
-      });
+      };
+      
+      console.log(`[Campaign Details] ✅ Sending response with ${responseData.callLogs.length} call logs and ${conversationsWithIds.length} conversations`);
+      
+      res.json(responseData);
     } catch (error) {
-      console.error('Campaign details error:', error);
+      console.error('[Campaign Details] Error:', error);
       res.status(500).json({ error: "Failed to fetch campaign details" });
     }
   });
 
-  // Get Knowledge Base
-  app.get("/api/knowledge-base", async (req, res) => {
+  // Get Knowledge Base (filtered by user's campaigns)
+  app.get("/api/knowledge-base", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const knowledgeBase = await storage.getAllKnowledgeBase();
-      res.json({ knowledgeBase });
+      const userId = req.user!.id;
+      
+      // Get user's campaigns first
+      const userCampaigns = await storage.getAllCampaigns(userId);
+      const userCampaignIds = userCampaigns.map(c => c.id);
+      
+      // Get all knowledge base files
+      const allKnowledgeBase = await storage.getAllKnowledgeBase();
+      
+      // Filter knowledge base files to only include those from user's campaigns
+      const userKnowledgeBase = allKnowledgeBase.filter(kb => 
+        userCampaignIds.includes(kb.campaignId)
+      );
+      
+      res.json({ knowledgeBase: userKnowledgeBase });
     } catch (error) {
       console.error('Knowledge base fetch error:', error);
       res.status(500).json({ error: "Failed to fetch knowledge base" });
+    }
+  });
+
+  // Get Knowledge Base for specific campaign
+  app.get("/api/campaigns/:id/knowledge-base", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      
+      console.log(`[Knowledge Base] Fetching knowledge base for campaign ${campaignId} by user ${userId}`);
+      
+      // Verify campaign ownership
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== userId) {
+        console.error(`[Knowledge Base] Campaign not found or access denied`);
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      
+      // Get knowledge base files for this specific campaign
+      const knowledgeBaseFiles = await storage.getKnowledgeBaseByCampaign(campaignId);
+      
+      console.log(`[Knowledge Base] Found ${knowledgeBaseFiles.length} files for campaign ${campaignId}`);
+      
+      res.json({ knowledgeBase: knowledgeBaseFiles });
+    } catch (error) {
+      console.error('[Knowledge Base] Campaign-specific fetch error:', error);
+      res.status(500).json({ error: "Failed to fetch campaign knowledge base" });
+    }
+  });
+
+  // Get Conversation Audio from ElevenLabs
+  app.get("/api/conversations/:conversationId/audio", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = req.user!.id;
+      
+      console.log(`[Conversation Audio] Fetching audio for conversation: ${conversationId} by user: ${userId}`);
+      
+      const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
+
+      if (!elevenLabsApiKey) {
+        console.error("[Conversation Audio] ElevenLabs API key not configured");
+        return res.status(400).json({ error: "ElevenLabs API key not configured" });
+      }
+
+      // SECURITY FIX: Only get call logs for user's campaigns to verify ownership
+      const userCampaigns = await storage.getAllCampaigns(userId);
+      let userCallLogs: any[] = [];
+      for (const campaign of userCampaigns) {
+        const campaignCallLogs = await storage.getCallLogsByCampaign(campaign.id);
+        userCallLogs.push(...campaignCallLogs);
+      }
+      console.log(`[Conversation Audio] Total call logs for user: ${userCallLogs.length}`);
+      
+      const callLog = userCallLogs.find(log => log.elevenLabsConversationId === conversationId);
+      console.log(`[Conversation Audio] Found call log:`, callLog ? {
+        id: callLog.id,
+        campaignId: callLog.campaignId,
+        leadId: callLog.leadId,
+        status: callLog.status,
+        conversationId: callLog.elevenLabsConversationId
+      } : 'Not found');
+      
+      if (!callLog) {
+        console.error(`[Conversation Audio] No call log found with conversation ID: ${conversationId}`);
+        
+        // Debug: Show conversation IDs available to this user
+        const conversationIds = userCallLogs
+          .filter((log: any) => log.elevenLabsConversationId)
+          .map((log: any) => log.elevenLabsConversationId);
+        console.log(`[Conversation Audio] Available conversation IDs for user:`, conversationIds);
+        
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Get the campaign to verify ownership
+      const campaign = await storage.getCampaign(callLog.campaignId);
+      console.log(`[Conversation Audio] Campaign ownership check:`, {
+        campaignExists: !!campaign,
+        campaignUserId: campaign?.userId,
+        requestUserId: userId,
+        ownershipValid: campaign?.userId === userId
+      });
+      
+      if (!campaign || campaign.userId !== userId) {
+        console.error(`[Conversation Audio] Access denied - campaign ownership mismatch`);
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Fetch audio from ElevenLabs
+      const audioUrl = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}/audio`;
+      console.log(`[Conversation Audio] Fetching audio from ElevenLabs: ${audioUrl}`);
+      
+      const audioResponse = await fetch(audioUrl, {
+        headers: {
+          "xi-api-key": elevenLabsApiKey,
+          "Accept": "audio/mpeg"
+        }
+      });
+
+      console.log(`[Conversation Audio] ElevenLabs response:`, {
+        status: audioResponse.status,
+        statusText: audioResponse.statusText,
+        contentType: audioResponse.headers.get('content-type'),
+        contentLength: audioResponse.headers.get('content-length')
+      });
+
+      if (!audioResponse.ok) {
+        const errorText = await audioResponse.text();
+        console.error("[ElevenLabs Audio] API error:", {
+          status: audioResponse.status,
+          statusText: audioResponse.statusText,
+          error: errorText,
+          conversationId,
+          url: audioUrl
+        });
+        return res.status(audioResponse.status).json({ 
+          error: "Failed to fetch conversation audio" 
+        });
+      }
+
+      // Stream the audio response back to the client
+      const contentType = audioResponse.headers.get('content-type') || 'audio/mpeg';
+      const contentLength = audioResponse.headers.get('content-length');
+
+      res.setHeader('Content-Type', contentType);
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+
+      console.log(`[Conversation Audio] Streaming audio to client - Content-Type: ${contentType}, Content-Length: ${contentLength}`);
+
+      if (audioResponse.body) {
+        audioResponse.body.pipe(res);
+      } else {
+        console.error("[Conversation Audio] No audio body received from ElevenLabs");
+        res.status(500).json({ error: "No audio data received" });
+      }
+
+    } catch (error) {
+      console.error('[Conversation Audio] Error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to fetch conversation audio" 
+      });
     }
   });
 
@@ -1377,9 +1784,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (callLog.leadId) {
           let leadStatus = 'pending';
           if (CallStatus === 'completed') {
-            // Determine if call was successful based on duration
-            const duration = parseInt(CallDuration || '0');
-            leadStatus = duration > 10 ? 'completed' : 'failed'; // Consider calls > 10 seconds as successful
+            // Any call that connects is completed, regardless of duration
+            leadStatus = 'completed';
           } else if (CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer') {
             leadStatus = 'failed';
           }
@@ -1392,16 +1798,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const campaign = await storage.getCampaign(callLog.campaignId);
           if (campaign) {
             const duration = parseInt(CallDuration || '0');
-            const isSuccessful = duration > 10; // Consider calls > 10 seconds as successful
+            const isSuccessful = duration > 3; // Consider calls > 3 seconds as successful (much more reasonable)
             
+            // Completed calls are calls that connected (regardless of duration)
+            // Successful calls are completed calls that had meaningful conversation (3+ seconds)
+            // Failed calls are only calls that never connected
             await storage.updateCampaign(callLog.campaignId, {
               completedCalls: (campaign.completedCalls ?? 0) + 1,
               successfulCalls: isSuccessful ? (campaign.successfulCalls ?? 0) + 1 : (campaign.successfulCalls ?? 0),
-              failedCalls: !isSuccessful ? (campaign.failedCalls ?? 0) + 1 : (campaign.failedCalls ?? 0),
+              // Don't increment failedCalls for completed calls, even if they're short
             });
           }
         } else if (callLog.campaignId && (CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer')) {
-          // Handle failed calls
+          // Handle truly failed calls (calls that never connected)
           const campaign = await storage.getCampaign(callLog.campaignId);
           if (campaign) {
             await storage.updateCampaign(callLog.campaignId, {
@@ -1688,9 +2097,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const message = JSON.parse(data.toString()) as ElevenLabsMessage;
           
+          // Log ALL incoming messages for debugging
+          console.log(`[ElevenLabs] 📥 Received message type: ${message.type}`);
+          console.log(`[ElevenLabs] 📥 Full message:`, JSON.stringify(message, null, 2));
+          
           switch (message.type) {
             case "conversation_initiation_metadata":
               console.log("[ElevenLabs] Conversation initiated");
+              console.log("[ElevenLabs] 🔍 Initiation metadata:", JSON.stringify(message.conversation_initiation_metadata, null, 2));
+              
+              // Try multiple possible locations for conversation ID
+              let conversationId = null;
+              
+              // Check standard location
+              if (message.conversation_initiation_metadata?.conversation_id) {
+                conversationId = message.conversation_initiation_metadata.conversation_id;
+                console.log(`[ElevenLabs] ✅ Found Conversation ID in standard location: ${conversationId}`);
+              }
+              // Check the correct ElevenLabs format
+              else if ((message as any).conversation_initiation_metadata_event?.conversation_id) {
+                conversationId = (message as any).conversation_initiation_metadata_event.conversation_id;
+                console.log(`[ElevenLabs] ✅ Found Conversation ID in ElevenLabs event format: ${conversationId}`);
+              }
+              // Check alternative location (sometimes it's at root level)
+              else if ((message as any).conversation_id) {
+                conversationId = (message as any).conversation_id;
+                console.log(`[ElevenLabs] ✅ Found Conversation ID at root level: ${conversationId}`);
+              }
+              // Check another alternative location
+              else if (message.conversation_initiation_metadata && Object.keys(message.conversation_initiation_metadata).length > 0) {
+                // Log what's actually in the metadata
+                console.log(`[ElevenLabs] 🔍 Available keys in initiation metadata:`, Object.keys(message.conversation_initiation_metadata));
+                // Try to find any field that looks like a conversation ID
+                for (const [key, value] of Object.entries(message.conversation_initiation_metadata)) {
+                  if (key.toLowerCase().includes('conversation') || key.toLowerCase().includes('id')) {
+                    conversationId = value as string;
+                    console.log(`[ElevenLabs] ✅ Found Conversation ID in field '${key}': ${conversationId}`);
+                    break;
+                  }
+                }
+              }
+              
+              if (conversationId) {
+                console.log(`[ElevenLabs] ✅ Received Conversation ID: ${conversationId}`);
+                console.log(`[ElevenLabs] Context - CampaignId: ${campaignId}, CallSid: ${callSid}, StreamSid: ${streamSid}`);
+                
+                // Update call log with conversation ID if we have the necessary information
+                if (campaignId && callSid) {
+                  console.log(`[ElevenLabs] Attempting to store conversation ID in database...`);
+                  // Use async IIFE to handle the async operations
+                  (async () => {
+                    try {
+                      // Find the call log by campaign and Twilio call SID
+                      const allCallLogs = await storage.getAllCallLogs();
+                      console.log(`[ElevenLabs] Searching for call log with campaignId: ${campaignId}, twilioCallSid: ${callSid}`);
+                      console.log(`[ElevenLabs] Total call logs in database: ${allCallLogs.length}`);
+                      
+                      const callLog = allCallLogs.find(log => 
+                        log.campaignId === campaignId && log.twilioCallSid === callSid
+                      );
+                      
+                      if (callLog) {
+                        console.log(`[ElevenLabs] ✅ Found matching call log:`, {
+                          id: callLog.id,
+                          campaignId: callLog.campaignId,
+                          leadId: callLog.leadId,
+                          twilioCallSid: callLog.twilioCallSid,
+                          status: callLog.status
+                        });
+                        
+                        await storage.updateCallLog(callLog.id, {
+                          elevenLabsConversationId: conversationId
+                        });
+                        
+                        console.log(`[ElevenLabs] ✅ Successfully updated call log ${callLog.id} with conversation ID: ${conversationId}`);
+                        
+                        // Verify the update worked
+                        const updatedCallLog = await storage.getAllCallLogs();
+                        const verifyLog = updatedCallLog.find(log => log.id === callLog.id);
+                        console.log(`[ElevenLabs] ✅ Verification - Call log now has conversation ID:`, verifyLog?.elevenLabsConversationId);
+                      } else {
+                        console.error(`[ElevenLabs] ❌ No call log found with campaignId: ${campaignId} and twilioCallSid: ${callSid}`);
+                        
+                        // Debug: Show what call logs we do have
+                        const relevantLogs = allCallLogs.filter(log => 
+                          log.campaignId === campaignId || log.twilioCallSid === callSid
+                        );
+                        console.log(`[ElevenLabs] Debug - Call logs for this campaign/call:`, relevantLogs.map(log => ({
+                          id: log.id,
+                          campaignId: log.campaignId,
+                          twilioCallSid: log.twilioCallSid,
+                          status: log.status,
+                          conversationId: log.elevenLabsConversationId
+                        })));
+                      }
+                    } catch (error) {
+                      console.error("[ElevenLabs] ❌ Error updating call log with conversation ID:", error);
+                    }
+                  })();
+                } else {
+                  console.error(`[ElevenLabs] ❌ Missing required data to store conversation ID - CampaignId: ${campaignId}, CallSid: ${callSid}`);
+                }
+              } else {
+                console.error("[ElevenLabs] ❌ No conversation ID found in any expected location");
+                console.error("[ElevenLabs] 🔍 Full message structure for debugging:", JSON.stringify(message, null, 2));
+              }
               break;
             
             case "audio":
@@ -1731,6 +2242,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             default:
               console.log(`[ElevenLabs] Unhandled message type: ${message.type}`);
+              
+              // Check if this unhandled message contains a conversation ID
+              const messageAny = message as any;
+              let foundConversationId = null;
+              
+              // Check for conversation ID in various possible locations
+              if (messageAny.conversation_id) {
+                foundConversationId = messageAny.conversation_id;
+              } else if (messageAny.metadata?.conversation_id) {
+                foundConversationId = messageAny.metadata.conversation_id;
+              } else if (messageAny.data?.conversation_id) {
+                foundConversationId = messageAny.data.conversation_id;
+              } else {
+                // Search recursively for any field containing "conversation" and "id"
+                const searchForConversationId = (obj: any, path = ''): string | null => {
+                  for (const [key, value] of Object.entries(obj)) {
+                    const currentPath = path ? `${path}.${key}` : key;
+                    if (typeof value === 'string' && key.toLowerCase().includes('conversation') && key.toLowerCase().includes('id')) {
+                      return value;
+                    } else if (typeof value === 'object' && value !== null) {
+                      const result = searchForConversationId(value, currentPath);
+                      if (result) return result;
+                    }
+                  }
+                  return null;
+                };
+                foundConversationId = searchForConversationId(messageAny);
+              }
+              
+              if (foundConversationId && campaignId && callSid) {
+                console.log(`[ElevenLabs] 🎯 Found conversation ID in unhandled message type '${message.type}': ${foundConversationId}`);
+                
+                // Store the conversation ID
+                (async () => {
+                  try {
+                    const allCallLogs = await storage.getAllCallLogs();
+                    const callLog = allCallLogs.find(log => 
+                      log.campaignId === campaignId && log.twilioCallSid === callSid
+                    );
+                    
+                    if (callLog && !callLog.elevenLabsConversationId) {
+                      await storage.updateCallLog(callLog.id, {
+                        elevenLabsConversationId: foundConversationId
+                      });
+                      console.log(`[ElevenLabs] ✅ Successfully stored conversation ID ${foundConversationId} from message type '${message.type}'`);
+                    }
+                  } catch (error) {
+                    console.error("[ElevenLabs] ❌ Error storing conversation ID from unhandled message:", error);
+                  }
+                })();
+              }
           }
         } catch (error) {
           console.error("[ElevenLabs] Error processing message:", error);
@@ -1994,15 +2556,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user?.id;
       
-      // Calculate analytics from local data
-      const campaigns = await storage.getAllCampaigns(userId);
-      const allCallLogs = await storage.getAllCallLogs();
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
       
-      // Filter call logs for user's campaigns if needed
-      const userCampaignIds = campaigns.map(c => c.id);
-      const userCallLogs = allCallLogs.filter(log => 
-        log.campaignId && userCampaignIds.includes(log.campaignId)
-      );
+      // Calculate analytics from local data - SECURE: only user's campaigns
+      const campaigns = await storage.getAllCampaigns(userId);
+      
+      // SECURITY FIX: Get call logs only for user's campaigns
+      let userCallLogs: any[] = [];
+      for (const campaign of campaigns) {
+        const campaignCallLogs = await storage.getCallLogsByCampaign(campaign.id);
+        userCallLogs.push(...campaignCallLogs);
+      }
       
              // Calculate today's calls
        const today = new Date();
@@ -2049,7 +2615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update Dashboard Settings
-  app.patch("/api/analytics/dashboard/settings", async (req, res) => {
+  app.patch("/api/analytics/dashboard/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
       
@@ -2108,7 +2674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete Knowledge Base File
-  app.delete("/api/knowledge-base/:id", async (req, res) => {
+  app.delete("/api/knowledge-base/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const fileId = parseInt(req.params.id);
       const { campaignId } = req.body;
@@ -2117,11 +2683,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Campaign ID is required" });
       }
 
+      // Check campaign ownership first
+      const campaignToCheck = await storage.getCampaign(parseInt(campaignId));
+      if (!campaignToCheck || campaignToCheck.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
       // Get the knowledge base entry
       const allKnowledgeBase = await storage.getAllKnowledgeBase();
       const knowledgeBaseFile = allKnowledgeBase.find(kb => kb.id === fileId);
 
-      if (!knowledgeBaseFile) {
+      if (!knowledgeBaseFile || knowledgeBaseFile.campaignId !== parseInt(campaignId)) {
         return res.status(404).json({ error: "Knowledge base file not found" });
       }
 
@@ -2260,10 +2832,9 @@ async function processcamp(campaignId: number) {
       try {
         console.log(`[Campaign ${campaignId}] Processing lead ${lead.id} (${lead.firstName} - ${lead.contactNo})`);
         
-        // Check if this lead already has a call log to prevent duplicates
-        const allCallLogs = await storage.getAllCallLogs();
-        const existingCallLog = allCallLogs.find(log => 
-          log.campaignId === campaignId && 
+        // SECURITY FIX: Check if this lead already has a call log to prevent duplicates
+        const campaignCallLogs = await storage.getCallLogsByCampaign(campaignId);
+        const existingCallLog = campaignCallLogs.find(log => 
           log.leadId === lead.id && 
           log.status !== 'failed'
         );

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { LogIn, UserPlus, Loader2 } from "lucide-react";
 
 export default function Login() {
@@ -14,8 +15,17 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login, register } = useAuth();
+  const { user, loading, login, register } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!loading && user) {
+      console.log('User already authenticated, redirecting to dashboard');
+      setLocation("/dashboard");
+    }
+  }, [user, loading, setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,12 +57,16 @@ export default function Login() {
           title: "Welcome back!",
           description: "You have been logged in successfully.",
         });
+        // Navigate to dashboard after successful login
+        setLocation("/dashboard");
       } else {
         await register(email, password, confirmPassword);
         toast({
           title: "Account created!",
           description: "Your account has been created and you are now logged in.",
         });
+        // Navigate to dashboard after successful registration
+        setLocation("/dashboard");
       }
     } catch (error: any) {
       toast({
@@ -71,6 +85,18 @@ export default function Login() {
     setPassword("");
     setConfirmPassword("");
   };
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-indigo-600" />
+          <p className="text-slate-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">

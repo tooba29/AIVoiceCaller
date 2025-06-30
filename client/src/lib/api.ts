@@ -1,5 +1,3 @@
-import { apiRequest } from "./queryClient";
-
 export interface CampaignStats {
   activeCampaigns: number;
   callsToday: number;
@@ -70,10 +68,35 @@ export interface Lead {
 export interface DashboardChart {
   name: string;
   type: string;
+  icon?: string;
+  color?: string;
 }
 
 export interface UpdateDashboardRequest {
   charts: DashboardChart[];
+}
+
+export interface CampaignDetailsResponse {
+  campaign: Campaign;
+  leads: Lead[];
+  callLogs: CallLog[];
+  stats: {
+    totalLeads: number;
+    completed: number;
+    failed: number;
+    pending: number;
+  };
+}
+
+export interface CallLog {
+  id: number;
+  campaignId?: number;
+  leadId?: number;
+  phoneNumber: string;
+  status: string;
+  duration?: number;
+  elevenLabsConversationId?: string;
+  createdAt: string;
 }
 
 const BASE_URL = '';  // Use relative URLs since we're on the same domain
@@ -106,6 +129,11 @@ export const api = {
   
   getKnowledgeBase: () => 
     fetch(`${BASE_URL}/api/knowledge-base`, {
+      credentials: 'include'
+    }).then(handleResponse),
+
+  getCampaignKnowledgeBase: (campaignId: number) => 
+    fetch(`${BASE_URL}/api/campaigns/${campaignId}/knowledge-base`, {
       credentials: 'include'
     }).then(handleResponse),
 
@@ -271,6 +299,30 @@ export const api = {
     return handleResponse(response);
   },
 
+  // Reset campaign statistics (fix stale data)
+  resetCampaignStats: async (campaignId: number) => {
+    const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/reset-stats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+    return handleResponse(response);
+  },
+
+  // Reset all campaign statistics (fix all stale data)
+  resetAllCampaignStats: async () => {
+    const response = await fetch(`${BASE_URL}/api/campaigns/reset-all-stats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+    return handleResponse(response);
+  },
+
   deleteCampaign: async (campaignId: number) => {
     try {
       const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}`, {
@@ -316,6 +368,35 @@ export const api = {
     }
   },
 
+  // Get campaign details with conversations
+  getCampaignDetails: async (campaignId: number): Promise<CampaignDetailsResponse> => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/details`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(errorData.error || 'Failed to fetch campaign details');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to fetch campaign details');
+    }
+  },
+
+  // Get conversation audio URL (returns audio stream URL)
+  getConversationAudioUrl: (conversationId: string) => {
+    const url = `${BASE_URL}/api/conversations/${conversationId}/audio`;
+    console.log(`[API] 🎵 Generated conversation audio URL: ${url}`);
+    return url;
+  },
+
   deleteKnowledgeBase: async (id: number, campaignId: number) => {
     try {
       const response = await fetch(`${BASE_URL}/api/knowledge-base/${id}`, {
@@ -356,6 +437,44 @@ export const api = {
       return response.json();
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to delete leads');
+    }
+  },
+
+  // Load dashboard settings from localStorage or use defaults
+  getDashboardSettingsLocal() {
+    const defaultSettings = {
+      selectedCharts: [
+        { name: "Active Campaigns", type: "active_campaigns", icon: "Play", color: "blue" },
+        { name: "Calls Today", type: "calls_today", icon: "Phone", color: "green" },
+        { name: "Success Rate", type: "call_success", icon: "TrendingUp", color: "emerald" },
+        { name: "Total Call Minutes", type: "total_minutes", icon: "Clock", color: "purple" }
+      ],
+      refreshInterval: 30,
+      showAnimations: true,
+      compactView: false
+    };
+
+    try {
+      const saved = localStorage.getItem('dashboard-settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...defaultSettings, ...parsed };
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard settings:', error);
+    }
+    
+    return defaultSettings;
+  },
+
+  // Save dashboard settings to localStorage
+  saveDashboardSettingsLocal: (settings: any) => {
+    try {
+      localStorage.setItem('dashboard-settings', JSON.stringify(settings));
+      return true;
+    } catch (error) {
+      console.error('Failed to save dashboard settings:', error);
+      return false;
     }
   },
 };
