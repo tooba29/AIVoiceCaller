@@ -2,7 +2,7 @@ import { Router } from 'express';
 import passport from './auth';
 import { storage } from './storage';
 import { hashPassword, validatePassword, validateEmail, requireAuth, requireNoAuth } from './auth';
-import { insertUserSchema } from '@shared/schema';
+import { insertUserSchema } from '../shared/schema.js';
 import { z } from 'zod';
 
 const router = Router();

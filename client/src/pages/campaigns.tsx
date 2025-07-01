@@ -1,20 +1,16 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, Play, Pause, Square, Edit2, Check, X, Upload, MessageSquare, Trash2, Eye, Plus, Phone, Edit } from "lucide-react";
+import { Play, Pause, Trash2, Eye, Plus, Phone, Edit } from "lucide-react";
 import { useLocation } from "wouter";
 import { api, type Campaign } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
@@ -44,11 +40,7 @@ const formatDate = (dateString: string) => {
 };
 
 export default function Campaigns() {
-  const [searchTerm, setSearchTerm] = useState("");
   const [editingCampaign, setEditingCampaign] = useState<number | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editGreeting, setEditGreeting] = useState("");
-  const [showGreetingDialog, setShowGreetingDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
@@ -74,7 +66,6 @@ export default function Campaigns() {
         description: "Campaign has been updated successfully.",
       });
       setEditingCampaign(null);
-      setShowGreetingDialog(false);
       setShowCreateDialog(false); // Close the create/edit dialog
       setNewCampaignName(""); // Clear the input field
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
@@ -145,54 +136,10 @@ export default function Campaigns() {
     },
   });
 
-  const handleEditClick = (campaign: Campaign) => {
-    setEditingCampaign(campaign.id);
-    setEditName(campaign.name);
-  };
-
-  const handleEditGreeting = (campaign: Campaign) => {
-    setSelectedCampaignId(campaign.id);
-    setEditGreeting(campaign.firstPrompt);
-    setShowGreetingDialog(true);
-  };
-
-  const handleSaveGreeting = () => {
-    if (!selectedCampaignId) return;
-    
-    if (!editGreeting.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Greeting message cannot be empty",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    updateCampaignMutation.mutate({
-      id: selectedCampaignId,
-      updates: { firstPrompt: editGreeting.trim() }
-    });
-  };
-
-  const handleSaveEdit = (campaignId: number) => {
-    if (!editName.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Campaign name cannot be empty",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    updateCampaignMutation.mutate({
-      id: campaignId,
-      updates: { name: editName.trim() }
-    });
-  };
+  // Removed unused edit functions - functionality moved to dialog
 
   const handleCancelEdit = () => {
     setEditingCampaign(null);
-    setEditName("");
     setNewCampaignName(""); // Clear the campaign name input
   };
 
@@ -233,9 +180,8 @@ export default function Campaigns() {
     setLocation(`/campaigns/${campaignId}`);
   };
 
-  const filteredCampaigns = (campaignsData?.campaigns as Campaign[] || []).filter((campaign: Campaign) =>
-    campaign.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Display all campaigns (search functionality removed)
+  const filteredCampaigns = (campaignsData?.campaigns as Campaign[] || []);
 
   const getStatusColor = (status: string) => {
     switch (status) {

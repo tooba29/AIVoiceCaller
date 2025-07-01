@@ -65,7 +65,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
-        {navigation.map((item, index) => {
+        {navigation.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
           

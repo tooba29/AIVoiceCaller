@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MicOff, Play, Pause, Upload, Users, RefreshCw, Mic2, User, Bot } from "lucide-react";
+import { Play, Pause, Upload, RefreshCw, Mic2, User, Bot } from "lucide-react";
 import { api, type Voice } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -19,8 +19,6 @@ interface VoiceSelectionProps {
 export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: VoiceSelectionProps) {
   const [activeTab, setActiveTab] = useState<"library" | "clone">("library");
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [voiceName, setVoiceName] = useState("");
   const [voiceDescription, setVoiceDescription] = useState("");
@@ -76,11 +74,10 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   });
 
   const handleRefresh = async () => {
-    setIsRefreshing(true);
     try {
       await refreshMutation.mutateAsync();
     } finally {
-      setIsRefreshing(false);
+      // Refresh completed
     }
   };
 
@@ -101,7 +98,6 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
           cleanupAudio(audioRef.current);
         }
         setCurrentlyPlaying(null);
-        setIsPlaying(false);
         return;
       }
 
@@ -117,7 +113,6 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
       const cleanup = () => {
         if (audioRef.current === audio) {
           setCurrentlyPlaying(null);
-          setIsPlaying(false);
           audioRef.current = null;
         }
       };
@@ -125,7 +120,6 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
       audio.onloadstart = () => {
         console.log(`[Voice Selection] Loading audio for voice: ${voice.name}`);
         setCurrentlyPlaying(voice.id);
-        setIsPlaying(true);
       };
 
       audio.oncanplay = () => {
@@ -149,12 +143,10 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
 
       audio.onpause = () => {
         console.log(`[Voice Selection] Audio paused for voice: ${voice.name}`);
-        setIsPlaying(false);
       };
 
       audio.onplay = () => {
         console.log(`[Voice Selection] Audio playing for voice: ${voice.name}`);
-        setIsPlaying(true);
       };
 
       audioRef.current = audio;
@@ -169,7 +161,6 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
     } catch (error) {
       console.error(`[Voice Selection] Error playing voice preview:`, error);
       setCurrentlyPlaying(null);
-      setIsPlaying(false);
       toast({
         title: "Playback Error",
         description: "Failed to play voice preview",

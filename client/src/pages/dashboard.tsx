@@ -30,12 +30,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
+// Removed unused Popover and Badge imports
 import { Card, CardContent } from "@/components/ui/card";
 
 // Notification types
@@ -55,7 +50,6 @@ export default function Dashboard() {
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
   const [uploadedLeads, setUploadedLeads] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notificationOpen, setNotificationOpen] = useState(false);
   const [lastCampaignCheck, setLastCampaignCheck] = useState<any>(null);
 
   // Get real campaigns data for notifications
@@ -202,8 +196,7 @@ export default function Dashboard() {
     }
   }, [campaignsData, notifications.length]);
 
-  // Count unread notifications
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Removed unused unreadCount variable
 
   const handleCampaignUpdate = (campaign: any) => {
     setCurrentCampaign(campaign);

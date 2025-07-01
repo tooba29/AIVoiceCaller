@@ -18,8 +18,9 @@ import {
   type Voice,
   type Campaign,
   type Lead,
-  type User
-} from "@shared/schema";
+  type User,
+  type CallLog
+} from "../shared/schema.js";
 import { z } from "zod";
 import { Request } from 'express';
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
@@ -258,7 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
       const agentId = process.env.ELEVENLABS_AGENT_ID || process.env.ELEVEN_LABS_AGENT_ID;
 
-      let elevenlabsDocId = null;
+      let elevenlabsDocId: string | null = null;
 
       if (elevenLabsApiKey) {
         try {
@@ -310,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           } else {
             const uploadResult = await uploadResponse.json() as { id?: string; name?: string };
-            elevenlabsDocId = uploadResult.id;
+            elevenlabsDocId = uploadResult.id ?? null;
             console.log('Successfully uploaded to ElevenLabs:', {
               id: uploadResult.id,
               name: uploadResult.name
@@ -797,21 +798,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            console.error('ElevenLabs API error details:', JSON.stringify(errorData, null, 2));
-            let errorMessage = 'Unknown error occurred';
-            
-            if (typeof errorData === 'object' && errorData !== null) {
-              const typedError = errorData as { detail?: unknown; message?: string };
+            const contentType = response.headers.get("content-type");
+            let errorData;
+            let errorMessage = "Unknown error occurred";
+
+            if (contentType && contentType.includes("application/json")) {
+              errorData = await response.json();
+              console.error(
+                "ElevenLabs API error details (JSON):",
+                JSON.stringify(errorData, null, 2)
+              );
+              const typedError = errorData as {
+                detail?: unknown;
+                message?: string;
+              };
               if (typedError.detail) {
-                errorMessage = typeof typedError.detail === 'string' 
-                  ? typedError.detail 
-                  : JSON.stringify(typedError.detail);
+                errorMessage =
+                  typeof typedError.detail === "string"
+                    ? typedError.detail
+                    : JSON.stringify(typedError.detail);
               } else if (typedError.message) {
                 errorMessage = typedError.message;
               }
-            } else if (typeof errorData === 'string') {
-              errorMessage = errorData;
+            } else {
+              errorData = await response.text();
+              console.error("ElevenLabs API error details (HTML/text):", errorData);
+              errorMessage = `Received non-JSON response from ElevenLabs.`;
             }
 
             throw new Error(`ElevenLabs API error: ${errorMessage}`);
@@ -826,7 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update campaign (campaignId is now required)
-      let campaign = null;
+      let campaign: any = null;
       if (campaignId) {
         // Verify ownership before updating
         const existingCampaign = await storage.getCampaign(parseInt(campaignId));
@@ -1437,7 +1449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all campaigns for this user
       const userCampaigns = await storage.getAllCampaigns(userId);
       
-      const results = [];
+      const results: any[] = [];
       let totalFixed = 0;
       
       for (const campaign of userCampaigns) {
@@ -2107,7 +2119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log("[ElevenLabs] 🔍 Initiation metadata:", JSON.stringify(message.conversation_initiation_metadata, null, 2));
               
               // Try multiple possible locations for conversation ID
-              let conversationId = null;
+              let conversationId: string | null = null;
               
               // Check standard location
               if (message.conversation_initiation_metadata?.conversation_id) {
@@ -2245,7 +2257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Check if this unhandled message contains a conversation ID
               const messageAny = message as any;
-              let foundConversationId = null;
+              let foundConversationId: string | null = null;
               
               // Check for conversation ID in various possible locations
               if (messageAny.conversation_id) {
@@ -2828,7 +2840,7 @@ async function processcamp(campaignId: number) {
 
     // Process each lead
     for (const lead of pendingLeads) {
-      let callLog = null;
+      let callLog: CallLog | null = null;
       try {
         console.log(`[Campaign ${campaignId}] Processing lead ${lead.id} (${lead.firstName} - ${lead.contactNo})`);
         
@@ -2874,9 +2886,11 @@ async function processcamp(campaignId: number) {
         });
 
         // Update call log with Twilio SID
-        await storage.updateCallLog(callLog.id, {
-          twilioCallSid: call.sid,
-        });
+        if (callLog) {
+          await storage.updateCallLog(callLog.id, {
+            twilioCallSid: call.sid,
+          });
+        }
 
         console.log(`[Campaign ${campaignId}] Call initiated for lead ${lead.id} with SID ${call.sid}`);
 

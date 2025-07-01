@@ -31,6 +31,11 @@ if (fs.existsSync(envPath)) {
   console.error('No .env file found at:', envPath);
 }
 
+// Set BASE_URL from Railway domain if not provided
+if (!process.env.BASE_URL && process.env.RAILWAY_PUBLIC_DOMAIN) {
+  process.env.BASE_URL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+}
+
 // Validate required environment variables
 const requiredEnvVars = ['ELEVENLABS_API_KEY', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'DATABASE_URL', 'SESSION_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -43,6 +48,9 @@ if (missingEnvVars.length > 0) {
   }
   process.exit(1);
 }
+
+// Log BASE_URL for debugging
+console.log('BASE_URL configured as:', process.env.BASE_URL);
 
 const app = express();
 
@@ -143,14 +151,16 @@ app.use('/api/auth', authRoutes);
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  // Use Railway's PORT environment variable or fallback to 5000
+  const port = parseInt(process.env.PORT || "5000", 10);
+  
+  // Railway requires binding to 0.0.0.0, not 127.0.0.1
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+  
   server.listen({
     port,
-    host: "127.0.0.1"
+    host
   }, () => {
-    log(`serving on port ${port}`);
+    log(`serving on ${host}:${port}`);
   });
 })();

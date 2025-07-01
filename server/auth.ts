@@ -2,7 +2,7 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
 import { storage } from './storage';
-import type { User } from '@shared/schema';
+import type { User } from '../shared/schema.js';
 
 // Configure passport local strategy
 passport.use(new LocalStrategy(
