@@ -28,7 +28,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import { IncomingMessage } from "http";
-import { log } from "./vite.js";
+import { log } from "./utils.js";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;

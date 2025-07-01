@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
-import { setupVite, serveStatic, log } from "./vite.js";
+import { log, serveStatic } from "./utils.js";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -146,6 +146,8 @@ app.use('/api/auth', authRoutes);
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    // Dynamic import for vite to avoid importing dev dependencies in production
+    const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
     serveStatic(app);
