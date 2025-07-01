@@ -165,13 +165,23 @@ app.use('/api/auth', authRoutes);
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
+  // if (app.get("env") === "development") { - old code
+  //   // Dynamic import for vite to avoid importing dev dependencies in production
+  //   const { setupVite } = await import("./vite.js");
+  //   await setupVite(app, server);
+  // } else {
+  //   serveStatic(app);
+  // }
+
+  // new code
   if (app.get("env") === "development") {
-    // Dynamic import for vite to avoid importing dev dependencies in production
     const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
+    const { serveStatic } = await import("./utils.js");
     serveStatic(app);
   }
+  
 
   // Use Railway's PORT environment variable or fallback to 5000
   const port = parseInt(process.env.PORT || "5000", 10);
