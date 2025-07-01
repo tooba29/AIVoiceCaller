@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import passport from './auth';
-import { storage } from './storage';
-import { hashPassword, validatePassword, validateEmail, requireAuth, requireNoAuth } from './auth';
+import passport from './auth.js';
+import { storage } from './storage.js';
+import { hashPassword, validatePassword, validateEmail, requireAuth, requireNoAuth } from './auth.js';
 import { insertUserSchema } from '../shared/schema.js';
 import { z } from 'zod';
 
