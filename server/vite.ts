@@ -8,11 +8,11 @@ import { log } from "./utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
- 
+
 export async function setupVite(app: Express, server: Server) {
   // Dynamic imports to avoid loading vite in production
   const { createServer: createViteServer, createLogger } = await import("vite");
-  const viteConfig = (await import("../vite.config.ts")).default;
+  const viteConfig = (await import("../vite.config.js")).default;
   
   const viteLogger = createLogger();
   const serverOptions = {

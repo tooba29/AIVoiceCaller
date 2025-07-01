@@ -175,10 +175,10 @@ app.use('/api/auth', authRoutes);
 
   // new code
   if (app.get("env") === "development") {
-    const { setupVite } = await import("./vite.ts");
+    const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
-    const { serveStatic } = await import("./utils.ts");
+    const { serveStatic } = await import("./utils.js");
     serveStatic(app);
   }
   
