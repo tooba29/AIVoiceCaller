@@ -1,13 +1,13 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { registerRoutes } from "./routes.js";
+import { setupVite, serveStatic, log } from "./vite.js";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import passport from "./auth";
-import authRoutes from "./auth-routes";
+import passport from "./auth.js";
+import authRoutes from "./auth-routes.js";
 import { Pool } from "pg";
 
 // Load environment variables from .env file

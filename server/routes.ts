@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { requireAuth } from "./auth";
+import { storage } from "./storage.js";
+import { requireAuth } from "./auth.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -28,7 +28,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import { IncomingMessage } from "http";
-import { log } from "./vite";
+import { log } from "./vite.js";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
