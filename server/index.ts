@@ -11,25 +11,45 @@ import authRoutes from "./auth-routes.js";
 import { Pool } from "pg";
 
 // Load environment variables from .env file
-const envPath = path.resolve(process.cwd(), '.env');
-console.log('Debug - Loading .env from:', envPath);
-console.log('Debug - .env file exists:', fs.existsSync(envPath));
+// const envPath = path.resolve(process.cwd(), '.env');
+// console.log('Debug - Loading .env from:', envPath);
+// console.log('Debug - .env file exists:', fs.existsSync(envPath));
 
-if (fs.existsSync(envPath)) {
-  try {
-    const envConfig = dotenv.parse(fs.readFileSync(envPath));
-    for (const k in envConfig) {
-      process.env[k] = envConfig[k];
+// SAFE LOADING OF ENV VARIABLES
+if (process.env.NODE_ENV !== 'production') {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    try {
+      const envConfig = dotenv.parse(fs.readFileSync(envPath));
+      for (const k in envConfig) {
+        process.env[k] = envConfig[k];
+      }
+      console.log('Debug - Loaded environment variables:', Object.keys(process.env));
+      console.log('Debug - ELEVENLABS_API_KEY exists:', !!process.env.ELEVENLABS_API_KEY);
+      console.log('Debug - ELEVENLABS_API_KEY length:', process.env.ELEVENLABS_API_KEY?.length);
+    } catch (error) {
+      console.error('Error loading .env file:', error);
     }
-    console.log('Debug - Loaded environment variables:', Object.keys(process.env));
-    console.log('Debug - ELEVENLABS_API_KEY exists:', !!process.env.ELEVENLABS_API_KEY);
-    console.log('Debug - ELEVENLABS_API_KEY length:', process.env.ELEVENLABS_API_KEY?.length);
-  } catch (error) {
-    console.error('Error loading .env file:', error);
+  } else {
+    console.warn('No .env file found — skipping local env load');
   }
-} else {
-  console.error('No .env file found at:', envPath);
 }
+
+// if (fs.existsSync(envPath)) {
+//   try {
+//     const envConfig = dotenv.parse(fs.readFileSync(envPath));
+//     for (const k in envConfig) {
+//       process.env[k] = envConfig[k];
+//     }
+//     console.log('Debug - Loaded environment variables:', Object.keys(process.env));
+//     console.log('Debug - ELEVENLABS_API_KEY exists:', !!process.env.ELEVENLABS_API_KEY);
+//     console.log('Debug - ELEVENLABS_API_KEY length:', process.env.ELEVENLABS_API_KEY?.length);
+//   } catch (error) {
+//     console.error('Error loading .env file:', error);
+//   }
+// } else {
+//   console.error('No .env file found at:', envPath);
+// }
 
 // Set BASE_URL from Railway domain if not provided
 if (!process.env.BASE_URL && process.env.RAILWAY_PUBLIC_DOMAIN) {
