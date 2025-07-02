@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
-import { log, serveStatic } from "./utils.js";
+import { log } from "./utils/log.js";
+import { serveStatic } from "./utils/static.js";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -178,7 +179,7 @@ app.use('/api/auth', authRoutes);
     const { setupVite } = await import("./vite.js");
     await setupVite(app, server);
   } else {
-    const { serveStatic } = await import("./utils.js");
+    const { serveStatic } = await import("./utils/static.js");
     serveStatic(app);
   }
   

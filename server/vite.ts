@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
-import { log } from "./utils.js";
+import { log } from "./utils/log.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
