@@ -6,9 +6,12 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true, 
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
     "declaration": true,
+    "noEmitOnError": true,
     "outDir": "./dist",
     "rootDir": "./",
     "baseUrl": ".",
@@ -19,6 +22,8 @@
   "include": [
     "server/**/*",
     "shared/**/*",
-    "vite.config.ts"
-  ]
+    "vite.config.ts",
+    "attached_assets/**/*"
+  ], 
+  "exclude": ["client"]
 } 
