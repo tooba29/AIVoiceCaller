@@ -18,7 +18,17 @@ export function log(message: string, source = "express") {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+  // In production, server is compiled to dist/server, and client assets are in dist/public
+  // We need to go up one level from dist/server to dist, then into public
+  const distPath = path.resolve(__dirname, "..", "public");
+  
+  console.log(`Debug - Server __dirname: ${__dirname}`);
+  console.log(`Debug - Looking for static files in: ${distPath}`);
+  console.log(`Debug - Static files directory exists: ${fs.existsSync(distPath)}`);
+  
+  if (fs.existsSync(distPath)) {
+    console.log(`Debug - Contents of ${distPath}:`, fs.readdirSync(distPath));
+  }
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

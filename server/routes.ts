@@ -1778,11 +1778,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Twilio Status Webhook
   app.post("/api/twilio/status", async (req, res) => {
     try {
+      console.log("[Twilio Status] Incoming webhook:", {
+        body: req.body,
+        headers: req.headers,
+        url: req.url
+      });
+      
       const { CallSid, CallStatus, CallDuration } = req.body;
       
+      if (!CallSid) {
+        console.error("[Twilio Status] Missing CallSid in request body");
+        return res.status(400).send('Missing CallSid');
+      }
+      
       // Find call log by Twilio SID
+      console.log("[Twilio Status] Looking for call log with CallSid:", CallSid);
       const allCallLogs = await storage.getAllCallLogs();
+      console.log("[Twilio Status] Total call logs found:", allCallLogs.length);
       const callLog = allCallLogs.find(log => log.twilioCallSid === CallSid);
+      console.log("[Twilio Status] Found matching call log:", !!callLog);
       
       if (callLog) {
         const updates: any = { status: CallStatus };
@@ -1832,9 +1846,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      console.log("[Twilio Status] Successfully processed webhook");
       res.status(200).send('OK');
     } catch (error) {
-      console.error('Twilio webhook error:', error);
+      console.error('[Twilio Status] Webhook error:', error);
+      console.error('[Twilio Status] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).send('Error');
     }
   });
@@ -2490,28 +2506,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update TwiML endpoint to handle test calls
   app.all("/outbound-call-twiml", (req, res) => {
-    const baseUrl = process.env.BASE_URL;
-    const campaignId = req.query.campaignId;
-    const leadId = req.query.leadId;
-    const firstName = req.query.firstName;
-    const isTestCall = req.query.isTestCall === 'true';
-    
-    console.log("[TwiML] Incoming request params:", { 
-      campaignId, 
-      leadId, 
-      firstName, 
-      isTestCall,
-      rawQuery: req.query
-    });
+    try {
+      console.log("[TwiML] Incoming request:", {
+        method: req.method,
+        url: req.url,
+        query: req.query,
+        body: req.body,
+        headers: req.headers
+      });
+      
+      const baseUrl = process.env.BASE_URL;
+      const campaignId = req.query.campaignId;
+      const leadId = req.query.leadId;
+      const firstName = req.query.firstName;
+      const isTestCall = req.query.isTestCall === 'true';
+      
+      console.log("[TwiML] Extracted params:", { 
+        baseUrl,
+        campaignId, 
+        leadId, 
+        firstName, 
+        isTestCall,
+        rawQuery: req.query
+      });
 
-    if (!baseUrl) {
-      return res.status(500).send('Missing BASE_URL environment variable');
-    }
+      if (!baseUrl) {
+        console.error("[TwiML] Missing BASE_URL environment variable");
+        return res.status(500).send('Missing BASE_URL environment variable');
+      }
 
-    // Validate required parameters
-    if (!campaignId) {
-      return res.status(400).send('Missing campaignId parameter');
-    }
+      // Validate required parameters
+      if (!campaignId) {
+        console.error("[TwiML] Missing campaignId parameter");
+        return res.status(400).send('Missing campaignId parameter');
+      }
 
     // Ensure baseUrl uses https
     const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
@@ -2561,6 +2589,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("[TwiML] Generated response:", twimlResponse);
 
     res.type("text/xml").send(twimlResponse);
+    } catch (error) {
+      console.error("[TwiML] Error processing request:", error);
+      console.error("[TwiML] Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+      res.status(500).send('Internal server error');
+    }
   });
 
   // Get Dashboard Analytics
