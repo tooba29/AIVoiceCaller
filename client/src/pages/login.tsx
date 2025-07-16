@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { useLocation } from "wouter";
 import { LogIn, UserPlus, Loader2 } from "lucide-react";
 
 export default function Login() {
+  const { t } = useTranslation();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,8 +34,8 @@ export default function Login() {
     
     if (!email || !password) {
       toast({
-        title: "Validation Error",
-        description: "Email and password are required",
+        title: t('auth.validationError'),
+        description: t('auth.emailPasswordRequired'),
         variant: "destructive",
       });
       return;
@@ -41,8 +43,8 @@ export default function Login() {
 
     if (!isLogin && password !== confirmPassword) {
       toast({
-        title: "Validation Error", 
-        description: "Passwords do not match",
+        title: t('auth.validationError'), 
+        description: t('auth.passwordsDoNotMatch'),
         variant: "destructive",
       });
       return;
@@ -54,24 +56,24 @@ export default function Login() {
       if (isLogin) {
         await login(email, password);
         toast({
-          title: "Welcome back!",
-          description: "You have been logged in successfully.",
+          title: t('auth.welcomeMessage'),
+          description: t('auth.loginSuccessMessage'),
         });
         // Navigate to dashboard after successful login
         setLocation("/dashboard");
       } else {
         await register(email, password, confirmPassword);
         toast({
-          title: "Account created!",
-          description: "Your account has been created and you are now logged in.",
+          title: t('auth.accountCreatedMessage'),
+          description: t('auth.accountCreatedSuccessMessage'),
         });
         // Navigate to dashboard after successful registration
         setLocation("/dashboard");
       }
     } catch (error: any) {
       toast({
-        title: isLogin ? "Login failed" : "Registration failed",
-        description: error.message || "An error occurred. Please try again.",
+        title: isLogin ? t('auth.loginFailed') : t('auth.registrationFailed'),
+        description: error.message || t('auth.errorOccurred'),
         variant: "destructive",
       });
     } finally {
@@ -92,7 +94,7 @@ export default function Login() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-indigo-600" />
-          <p className="text-slate-600">Checking authentication...</p>
+          <p className="text-slate-600">{t('auth.checkingAuthentication')}</p>
         </div>
       </div>
     );
@@ -105,9 +107,9 @@ export default function Login() {
           <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <span className="text-white text-2xl font-bold">AVC</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">AI Voice Caller</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">{t('auth.title')}</h1>
           <p className="text-slate-600">
-            {isLogin ? "Welcome back to your voice campaign dashboard" : "Create your account to get started"}
+            {isLogin ? t('auth.welcomeBack') : t('auth.createAccountPrompt')}
           </p>
         </div>
 
@@ -117,30 +119,30 @@ export default function Login() {
               {isLogin ? (
                 <>
                   <LogIn className="h-5 w-5 mr-2" />
-                  Sign In
+                  {t('auth.signIn')}
                 </>
               ) : (
                 <>
                   <UserPlus className="h-5 w-5 mr-2" />
-                  Create Account
+                  {t('auth.createAccount')}
                 </>
               )}
             </CardTitle>
             <p className="text-sm text-muted-foreground text-center">
               {isLogin
-                ? "Enter your credentials to access your dashboard"
-                : "Fill in your details to create a new account"
+                ? t('auth.enterCredentials')
+                : t('auth.fillDetails')
               }
             </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('common.email')}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
@@ -149,11 +151,11 @@ export default function Login() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('common.password')}</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder={t('auth.passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
@@ -163,11 +165,11 @@ export default function Login() {
 
               {!isLogin && (
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword">{t('common.confirmPassword')}</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
-                    placeholder="Confirm your password"
+                    placeholder={t('auth.confirmPasswordPlaceholder')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={isLoading}
@@ -184,19 +186,19 @@ export default function Login() {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {isLogin ? "Signing in..." : "Creating account..."}
+                    {isLogin ? t('auth.signingIn') : t('auth.creatingAccount')}
                   </>
                 ) : (
                   <>
                     {isLogin ? (
                       <>
                         <LogIn className="h-4 w-4 mr-2" />
-                        Sign In
+                        {t('auth.signIn')}
                       </>
                     ) : (
                       <>
                         <UserPlus className="h-4 w-4 mr-2" />
-                        Create Account
+                        {t('auth.createAccount')}
                       </>
                     )}
                   </>
@@ -206,14 +208,14 @@ export default function Login() {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                {isLogin ? "Don't have an account?" : "Already have an account?"}
+                {isLogin ? t('auth.dontHaveAccount') : t('auth.alreadyHaveAccount')}
                 <Button
                   variant="link"
                   className="p-0 ml-1 h-auto text-sm"
                   onClick={toggleMode}
                   disabled={isLoading}
                 >
-                  {isLogin ? "Create one here" : "Sign in here"}
+                  {isLogin ? t('auth.createOneHere') : t('auth.signInHere')}
                 </Button>
               </p>
             </div>
@@ -223,7 +225,7 @@ export default function Login() {
         {!isLogin && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs text-blue-700">
-              <strong>Password requirements:</strong> At least 8 characters with uppercase, lowercase, and numbers.
+              <strong>{t('auth.passwordRequirements')}</strong> {t('auth.passwordRequirementsText')}
             </p>
           </div>
         )}

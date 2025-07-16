@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import Sidebar from "@/components/sidebar";
 import StatsOverview from "@/components/stats-overview";
 import CampaignSetup from "@/components/campaign-setup";
@@ -7,6 +8,7 @@ import LeadsUpload from "@/components/leads-upload";
 import CampaignActions from "@/components/campaign-actions";
 import CampaignSelector from "@/components/campaign-selector";
 import DashboardSettings from "@/components/dashboard-settings";
+import LanguageSelector from "@/components/language-selector";
 import { Button } from "@/components/ui/button";
 import { 
   Bell, 
@@ -46,6 +48,7 @@ interface Notification {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const [currentCampaign, setCurrentCampaign] = useState<any>(null);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
   const [uploadedLeads, setUploadedLeads] = useState<any[]>([]);
@@ -319,11 +322,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-4xl font-bold text-gradient mb-2">
-                Dashboard
+                {t('dashboard.title')}
               </h2>
-              <p className="text-muted-foreground/80 text-lg">Welcome back! Manage your AI voice campaigns</p>
+              <p className="text-muted-foreground/80 text-lg">{t('dashboard.welcomeMessage')}</p>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Language Selector */}
+              <LanguageSelector />
+              
               {/* Notifications */}
               <Sheet>
                 <SheetTrigger asChild>
@@ -338,13 +344,13 @@ export default function Dashboard() {
                 </SheetTrigger>
                 <SheetContent className="glass-card border-gradient">
                   <SheetHeader>
-                    <SheetTitle className="text-gradient">Notifications</SheetTitle>
+                    <SheetTitle className="text-gradient">{t('dashboard.notifications')}</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6">
                     {notifications.length === 0 ? (
                       <div className="p-4 text-center text-muted-foreground">
                         <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>No notifications</p>
+                        <p>{t('dashboard.noNotifications')}</p>
                       </div>
                     ) : (
                       <div className="space-y-1">
@@ -402,7 +408,7 @@ export default function Dashboard() {
                           onClick={markAllAsRead}
                           className="text-xs"
                         >
-                          Mark all read
+                          {t('dashboard.markAllAsRead')}
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -410,7 +416,7 @@ export default function Dashboard() {
                           onClick={clearAllNotifications}
                           className="text-xs text-red-500 hover:text-red-700"
                         >
-                          Clear all
+                          {t('dashboard.clearAll')}
                         </Button>
                       </div>
                     )}
@@ -442,10 +448,10 @@ export default function Dashboard() {
             {/* Stats Overview */}
             <div className="bg-gradient-to-br from-white/80 via-blue-50/40 to-purple-50/30 backdrop-blur-sm border border-white/60 rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-500">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gradient">Campaign Statistics</h3>
+                <h3 className="text-2xl font-bold text-gradient">{t('dashboard.campaignStatistics')}</h3>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-muted-foreground font-medium">Live Data</span>
+                                      <span className="text-sm text-muted-foreground font-medium">{t('dashboard.liveData')}</span>
                 </div>
               </div>
               <StatsOverview />
@@ -464,7 +470,7 @@ export default function Dashboard() {
                         <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
                           <Target className="h-5 w-5 text-white" />
                         </div>
-                        <span>Campaign Management</span>
+                        <span>{t('dashboard.campaignManagement')}</span>
                       </h3>
                     </div>
                     <CampaignSelector onCampaignSelect={handleCampaignUpdate} />
@@ -487,7 +493,7 @@ export default function Dashboard() {
                           className="glass-card border-gradient hover-lift"
                         >
                           <Target className="h-4 w-4 mr-2" />
-                          Change Campaign
+                          {t('dashboard.changeCampaign')}
                         </Button>
                       </div>
                       <CampaignSetup 
@@ -510,7 +516,7 @@ export default function Dashboard() {
                         <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center shadow-md">
                           <Mic2 className="h-4 w-4 text-white" />
                         </div>
-                        <span>Voice Selection</span>
+                        <span>{t('dashboard.voiceSelection')}</span>
                       </h3>
                     </div>
                     <VoiceSelection 
@@ -528,7 +534,7 @@ export default function Dashboard() {
                         <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center shadow-md">
                           <Users className="h-4 w-4 text-white" />
                         </div>
-                        <span>Leads Management</span>
+                        <span>{t('dashboard.leadsManagement')}</span>
                       </h3>
                     </div>
                     <LeadsUpload 
@@ -549,7 +555,7 @@ export default function Dashboard() {
                     <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg">
                       <Rocket className="h-5 w-5 text-white" />
                     </div>
-                    <span>Campaign Launch</span>
+                    <span>{t('dashboard.campaignLaunch')}</span>
                   </h3>
                 </div>
                 <CampaignActions 

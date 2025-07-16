@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { 
   LayoutDashboard, 
@@ -15,6 +16,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 
 export default function Sidebar() {
+  const { t } = useTranslation();
   const [location, setLocation] = useLocation();
   const { logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -29,10 +31,10 @@ export default function Sidebar() {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, gradient: 'from-blue-500 to-indigo-600' },
-    { name: 'Campaigns', href: '/campaigns', icon: Users, gradient: 'from-purple-500 to-pink-600' },
-    { name: 'Voices', href: '/voices', icon: Mic2, gradient: 'from-green-500 to-emerald-600' },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3, gradient: 'from-orange-500 to-red-600' },
+    { name: t('navigation.dashboard'), href: '/dashboard', icon: LayoutDashboard, gradient: 'from-blue-500 to-indigo-600' },
+    { name: t('navigation.campaigns'), href: '/campaigns', icon: Users, gradient: 'from-purple-500 to-pink-600' },
+    { name: t('navigation.voices'), href: '/voices', icon: Mic2, gradient: 'from-green-500 to-emerald-600' },
+    { name: t('navigation.analytics'), href: '/analytics', icon: BarChart3, gradient: 'from-orange-500 to-red-600' },
   ];
 
   const isActive = (href: string) => location === href;
@@ -120,8 +122,8 @@ export default function Sidebar() {
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">AI Powered</p>
-              <p className="text-xs text-purple-200">Voice Conversations</p>
+              <p className="text-sm font-semibold text-white">{t('navigation.aiPowered')}</p>
+              <p className="text-xs text-purple-200">{t('navigation.voiceConversations')}</p>
             </div>
           </div>
         </div>
@@ -135,8 +137,8 @@ export default function Sidebar() {
           </div>
           {!isCollapsed && (
             <div>
-              <p className="text-sm font-medium text-white">User</p>
-              <p className="text-xs text-blue-300">Administrator</p>
+              <p className="text-sm font-medium text-white">{t('common.user')}</p>
+              <p className="text-xs text-blue-300">{t('common.administrator')}</p>
             </div>
           )}
         </div>
@@ -150,7 +152,7 @@ export default function Sidebar() {
             }`}
           >
             <Settings className="h-4 w-4" />
-            {!isCollapsed && <span className="ml-2">Settings</span>}
+            {!isCollapsed && <span className="ml-2">{t('common.settings')}</span>}
           </Button>
           
           <Button
@@ -162,7 +164,7 @@ export default function Sidebar() {
             }`}
           >
             <LogOut className="h-4 w-4" />
-            {!isCollapsed && <span className="ml-2">Logout</span>}
+            {!isCollapsed && <span className="ml-2">{t('common.logout')}</span>}
           </Button>
         </div>
       </div>
