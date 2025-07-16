@@ -57,9 +57,9 @@ export default function Sidebar() {
           {!isCollapsed && (
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
-                AI Voice Caller
+                {t('auth.title')}
               </h1>
-              <p className="text-xs text-blue-300/80 font-medium">Sales Automation</p>
+              <p className="text-xs text-blue-300/80 font-medium">{t('auth.subtitle')}</p>
             </div>
           )}
         </div>

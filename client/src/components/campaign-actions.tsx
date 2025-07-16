@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { Rocket, Phone, Play, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 interface CampaignActionsProps {
   campaign: any;
@@ -14,6 +15,7 @@ interface CampaignActionsProps {
 }
 
 export default function CampaignActions({ campaign, selectedVoiceId, uploadedLeads }: CampaignActionsProps) {
+  const { t } = useTranslation();
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [testFirstName, setTestFirstName] = useState("");
   const [testCallStatus, setTestCallStatus] = useState<"idle" | "calling" | "completed" | "failed">("idle");
@@ -27,16 +29,16 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
     onSuccess: (data) => {
       setTestCallStatus("completed");
       toast({
-        title: "Test Call Successful",
-        description: data.message || "Test call completed successfully.",
+        title: t('campaignActions.testCallSuccessful'),
+        description: data.message || t('campaignActions.testCallSuccessMessage'),
       });
       setTimeout(() => setTestCallStatus("idle"), 3000);
     },
     onError: (error: any) => {
       setTestCallStatus("failed");
       toast({
-        title: "Test Call Failed",
-        description: error.message || "Failed to make test call.",
+        title: t('campaignActions.testCallFailed'),
+        description: error.message || t('campaignActions.testCallFailedMessage'),
         variant: "destructive",
       });
       setTimeout(() => setTestCallStatus("idle"), 3000);
@@ -48,14 +50,14 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
     mutationFn: (campaignId: number) => api.startCampaign(campaignId),
     onSuccess: (data) => {
       toast({
-        title: "Campaign Started",
-        description: data.message || "Campaign has been started successfully.",
+        title: t('campaignActions.campaignStarted'),
+        description: data.message || t('campaignActions.campaignStartedMessage'),
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Campaign Start Failed",
-        description: error.message || "Failed to start campaign.",
+        title: t('campaignActions.campaignStartFailed'),
+        description: error.message || t('campaignActions.campaignStartFailedMessage'),
         variant: "destructive",
       });
     },
@@ -64,8 +66,8 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
   const handleTestCall = () => {
     if (!testPhoneNumber.trim()) {
       toast({
-        title: "Phone Number Required",
-        description: "Please enter a phone number for the test call.",
+        title: t('campaignActions.phoneNumberRequired'),
+        description: t('campaignActions.enterPhoneNumber'),
         variant: "destructive",
       });
       return;
@@ -73,8 +75,8 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
 
     if (!campaign) {
       toast({
-        title: "No Campaign",
-        description: "Please create a campaign first.",
+        title: t('campaignActions.noCampaign'),
+        description: t('campaignActions.createCampaignFirst'),
         variant: "destructive",
       });
       return;
@@ -91,8 +93,8 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
   const handleStartCampaign = () => {
     if (!campaign || !selectedVoiceId || uploadedLeads.length === 0) {
       toast({
-        title: "Cannot Start Campaign",
-        description: "Please ensure you have selected a voice and uploaded leads before starting the campaign.",
+        title: t('campaignActions.cannotStartCampaign'),
+        description: t('campaignActions.cannotStartCampaignMessage'),
         variant: "destructive",
       });
       return;
@@ -119,8 +121,8 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
             <Rocket className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-foreground">Campaign Launch</h3>
-            <p className="text-sm text-muted-foreground font-medium">Test and start your campaign</p>
+            <h3 className="text-xl font-bold text-foreground">{t('campaignActions.title')}</h3>
+            <p className="text-sm text-muted-foreground font-medium">{t('campaignActions.subtitle')}</p>
           </div>
         </CardTitle>
       </CardHeader>
@@ -129,12 +131,12 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
           
           {/* Test Call */}
           <div className="space-y-4">
-            <h4 className="font-medium text-slate-800">Test Single Call</h4>
+            <h4 className="font-medium text-slate-800">{t('campaignActions.testSingleCall')}</h4>
             <div className="flex flex-col space-y-3">
               <div className="flex space-x-3">
                 <Input
                   type="text"
-                  placeholder="First Name (optional)"
+                  placeholder={t('campaignActions.firstNameOptional')}
                   value={testFirstName}
                   onChange={(e) => setTestFirstName(e.target.value)}
                   className="flex-1"
@@ -143,7 +145,7 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
               <div className="flex space-x-3">
                 <Input
                   type="tel"
-                  placeholder="+1 (555) 123-4567"
+                  placeholder={t('campaignActions.phoneNumberPlaceholder')}
                   value={testPhoneNumber}
                   onChange={(e) => setTestPhoneNumber(e.target.value)}
                   className="flex-1"
@@ -156,22 +158,22 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
                   {testCallStatus === "calling" ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Calling...
+                      {t('campaignActions.calling')}
                     </>
                   ) : testCallStatus === "completed" ? (
                     <>
                       <div className="h-4 w-4 rounded-full bg-green-500 mr-2"></div>
-                      Completed
+                      {t('campaignActions.completed')}
                     </>
                   ) : testCallStatus === "failed" ? (
                     <>
                       <AlertCircle className="h-4 w-4 mr-2" />
-                      Failed
+                      {t('campaignActions.failed')}
                     </>
                   ) : (
                     <>
                       <Phone className="h-4 w-4 mr-2" />
-                      Test Call
+                      {t('campaignActions.testCall')}
                     </>
                   )}
                 </Button>
@@ -182,7 +184,7 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    <span className="text-sm text-blue-700">Making test call...</span>
+                    <span className="text-sm text-blue-700">{t('campaignActions.makingTestCall')}</span>
                   </div>
                 </div>
               )}
@@ -190,12 +192,12 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
               {!isReadyToLaunch && (
                 <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-700">
-                    Complete all required steps to enable test calls:
+                    {t('campaignActions.completeRequiredSteps')}
                     <ul className="mt-2 list-disc list-inside">
-                      {!campaign?.firstPrompt && <li>Set initial message</li>}
-                      {!selectedVoiceId && <li>Select a voice</li>}
-                      {!campaign?.knowledgeBaseId && <li>Upload knowledge base</li>}
-                      {uploadedLeads.length === 0 && <li>Upload leads CSV</li>}
+                      {!campaign?.firstPrompt && <li>{t('campaignActions.setInitialMessage')}</li>}
+                      {!selectedVoiceId && <li>{t('campaignActions.selectVoice')}</li>}
+                      {!campaign?.knowledgeBaseId && <li>{t('campaignActions.uploadKnowledgeBase')}</li>}
+                      {uploadedLeads.length === 0 && <li>{t('campaignActions.uploadLeadsCSV')}</li>}
                     </ul>
                   </p>
                 </div>
@@ -205,7 +207,7 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
 
           {/* Launch Campaign */}
           <div className="space-y-4">
-            <h4 className="font-medium text-slate-800">Launch Campaign</h4>
+            <h4 className="font-medium text-slate-800">{t('campaignActions.launchCampaign')}</h4>
             <div className="space-y-4">
               <Button
                 onClick={handleStartCampaign}
@@ -215,43 +217,43 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
                 {startCampaignMutation.isPending ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                    Starting Campaign...
+                    {t('campaignActions.startingCampaign')}
                   </>
                 ) : (
                   <>
                     <Play className="h-5 w-5 mr-2" />
-                    Start Campaign
+                    {t('campaignActions.startCampaign')}
                   </>
                 )}
               </Button>
 
               {/* Campaign Requirements Status */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-                <h5 className="font-medium text-slate-700">Campaign Requirements:</h5>
+                <h5 className="font-medium text-slate-700">{t('campaignActions.campaignRequirements')}</h5>
                 <ul className="space-y-2">
                   <li className="flex items-center text-sm">
                     <div className={`w-5 h-5 rounded-full mr-3 flex items-center justify-center ${campaign?.firstPrompt ? 'bg-green-500' : 'bg-slate-300'}`}>
                       {campaign?.firstPrompt && <span className="text-white">✓</span>}
                     </div>
-                    Initial Message {campaign?.firstPrompt ? 'Set' : 'Required'}
+                    {t('campaignActions.initialMessage')} {campaign?.firstPrompt ? t('campaignActions.set') : t('campaignActions.required')}
                   </li>
                   <li className="flex items-center text-sm">
                     <div className={`w-5 h-5 rounded-full mr-3 flex items-center justify-center ${selectedVoiceId ? 'bg-green-500' : 'bg-slate-300'}`}>
                       {selectedVoiceId && <span className="text-white">✓</span>}
                     </div>
-                    Voice Selection {selectedVoiceId ? 'Complete' : 'Required'}
+                    {t('campaignActions.voiceSelection')} {selectedVoiceId ? t('campaignActions.complete') : t('campaignActions.required')}
                   </li>
                   <li className="flex items-center text-sm">
                     <div className={`w-5 h-5 rounded-full mr-3 flex items-center justify-center ${campaign?.knowledgeBaseId ? 'bg-green-500' : 'bg-slate-300'}`}>
                       {campaign?.knowledgeBaseId && <span className="text-white">✓</span>}
                     </div>
-                    Knowledge Base {campaign?.knowledgeBaseId ? 'Uploaded' : 'Required'}
+                    {t('campaignActions.knowledgeBase')} {campaign?.knowledgeBaseId ? t('campaignActions.uploaded') : t('campaignActions.required')}
                   </li>
                   <li className="flex items-center text-sm">
                     <div className={`w-5 h-5 rounded-full mr-3 flex items-center justify-center ${uploadedLeads.length > 0 ? 'bg-green-500' : 'bg-slate-300'}`}>
                       {uploadedLeads.length > 0 && <span className="text-white">✓</span>}
                     </div>
-                    Leads CSV {uploadedLeads.length > 0 ? `(${uploadedLeads.length} leads)` : 'Required'}
+                    {t('campaignActions.leadsCSV')} {uploadedLeads.length > 0 ? `(${uploadedLeads.length} ${t('campaignActions.leads')})` : t('campaignActions.required')}
                   </li>
                 </ul>
               </div>

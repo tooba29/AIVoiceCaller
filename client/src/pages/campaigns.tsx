@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ const formatDate = (dateString: string) => {
 };
 
 export default function Campaigns() {
+  const { t } = useTranslation();
   const [editingCampaign, setEditingCampaign] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
@@ -62,8 +64,8 @@ export default function Campaigns() {
       api.updateCampaign(id, updates),
     onSuccess: () => {
       toast({
-        title: "Campaign Updated",
-        description: "Campaign has been updated successfully.",
+        title: t('campaigns.campaignUpdated'),
+        description: t('campaigns.campaignUpdateSuccess'),
       });
       setEditingCampaign(null);
       setShowCreateDialog(false); // Close the create/edit dialog
@@ -72,8 +74,8 @@ export default function Campaigns() {
     },
     onError: (error: any) => {
       toast({
-        title: "Update Failed",
-        description: error.message || "Failed to update campaign",
+        title: t('campaigns.updateFailed'),
+        description: error.message || t('campaigns.failedToUpdateCampaign'),
         variant: "destructive",
       });
     },
@@ -85,15 +87,15 @@ export default function Campaigns() {
       api.uploadCSV(data.file, data.campaignId),
     onSuccess: () => {
       toast({
-        title: "Leads Updated",
+        title: t('leadsUpload.leadsUploaded'),
         description: "CSV file has been uploaded successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
     onError: (error: any) => {
       toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload CSV file",
+        title: t('leadsUpload.uploadFailed'),
+        description: error.message || t('leadsUpload.uploadFailedMessage'),
         variant: "destructive",
       });
     },
@@ -108,8 +110,8 @@ export default function Campaigns() {
     },
     onError: (error: any) => {
       toast({
-        title: "Status Update Failed",
-        description: error.message || "Failed to update campaign status",
+        title: t('campaigns.updateFailed'),
+        description: error.message || t('campaigns.failedToUpdateCampaign'),
         variant: "destructive",
       });
     },
@@ -120,8 +122,8 @@ export default function Campaigns() {
     mutationFn: (id: number) => api.deleteCampaign(id),
     onSuccess: () => {
       toast({
-        title: "Campaign Deleted",
-        description: "Campaign has been deleted successfully.",
+        title: t('campaigns.campaignDeleted'),
+        description: t('campaigns.campaignDeletedSuccess'),
       });
       setShowDeleteDialog(false);
       setCampaignToDelete(null);
@@ -129,8 +131,8 @@ export default function Campaigns() {
     },
     onError: (error: any) => {
       toast({
-        title: "Delete Failed",
-        description: error.message || "Failed to delete campaign",
+        title: t('campaigns.deleteFailed'),
+        description: error.message || t('campaigns.failedToDeleteCampaign'),
         variant: "destructive",
       });
     },
@@ -149,8 +151,8 @@ export default function Campaigns() {
 
     if (file.type !== 'text/csv') {
       toast({
-        title: "Invalid File",
-        description: "Please upload a CSV file",
+        title: t('campaigns.invalidFile'),
+        description: t('campaigns.uploadCsvFile'),
         variant: "destructive",
       });
       return;
@@ -206,8 +208,8 @@ export default function Campaigns() {
   const handleCreateCampaign = () => {
     if (!newCampaignName.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Campaign name cannot be empty",
+        title: t('auth.validationError'),
+        description: t('campaigns.campaignNamePlaceholder'),
         variant: "destructive",
       });
       return;
@@ -222,7 +224,7 @@ export default function Campaigns() {
   const handleUpdateCampaign = () => {
     if (!editingCampaign) {
       toast({
-        title: "Error",
+        title: t('common.error'),
         description: "No campaign selected for editing",
         variant: "destructive",
       });
@@ -231,8 +233,8 @@ export default function Campaigns() {
 
     if (!newCampaignName.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Campaign name cannot be empty",
+        title: t('auth.validationError'),
+        description: t('campaigns.campaignNamePlaceholder'),
         variant: "destructive",
       });
       return;
@@ -254,9 +256,9 @@ export default function Campaigns() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-4xl font-bold text-gradient mb-2">
-                Campaign Management
+                {t('campaigns.title')}
               </h2>
-              <p className="text-muted-foreground/80 text-lg">Create and manage your AI voice calling campaigns</p>
+              <p className="text-muted-foreground/80 text-lg">{t('campaigns.subtitle')}</p>
             </div>
             <div className="flex items-center space-x-4">
               <Button
@@ -264,7 +266,7 @@ export default function Campaigns() {
                 className="btn-gradient hover-lift shadow-lg"
               >
                 <Plus className="h-5 w-5 mr-2" />
-                New Campaign
+                {t('campaigns.newCampaign')}
               </Button>
             </div>
           </div>
@@ -295,16 +297,16 @@ export default function Campaigns() {
                   <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                     <Phone className="h-10 w-10 text-white" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gradient mb-4">No Campaigns Yet</h3>
+                  <h3 className="text-2xl font-bold text-gradient mb-4">{t('campaigns.noCampaignsYet')}</h3>
                   <p className="text-muted-foreground/80 mb-6">
-                    Create your first AI voice calling campaign to get started with automated outreach.
+                    {t('campaigns.noCampaignsMessage')}
                   </p>
                   <Button
                     onClick={() => setShowCreateDialog(true)}
                     className="btn-gradient hover-lift shadow-lg"
                   >
                     <Plus className="h-5 w-5 mr-2" />
-                    Create Your First Campaign
+                    {t('campaigns.createFirstCampaign')}
                   </Button>
                 </div>
               </div>
@@ -354,20 +356,20 @@ export default function Campaigns() {
                             <div className="text-2xl font-bold text-gradient-primary">
                               {campaign.completedCalls || 0}
                             </div>
-                            <div className="text-xs text-muted-foreground/70 font-medium">Total Calls</div>
+                            <div className="text-xs text-muted-foreground/70 font-medium">{t('campaigns.totalCalls')}</div>
                           </div>
                           <div className="text-center p-3 bg-gradient-to-br from-green-50/50 to-emerald-50/30 rounded-xl border border-green-100/50">
                             <div className="text-2xl font-bold text-gradient-success">
                               {campaign.successfulCalls || 0}
                             </div>
-                            <div className="text-xs text-muted-foreground/70 font-medium">Successful</div>
+                            <div className="text-xs text-muted-foreground/70 font-medium">{t('campaigns.successfulCalls')}</div>
                           </div>
                         </div>
 
                         {/* Progress bar */}
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground/70 font-medium">Progress</span>
+                            <span className="text-muted-foreground/70 font-medium">{t('campaigns.progress')}</span>
                             <span className="text-muted-foreground/70 font-medium">
                               {campaign.totalLeads > 0 
                                 ? Math.round((campaign.completedCalls / campaign.totalLeads) * 100)
@@ -400,7 +402,7 @@ export default function Campaigns() {
                                 className="h-8 px-3 border-orange-200 text-orange-700 hover:bg-orange-50"
                               >
                                 <Pause className="h-3 w-3 mr-1" />
-                                Pause
+                                {t('common.pause')}
                               </Button>
                             )}
                             {campaign.status === 'paused' && (
@@ -414,7 +416,7 @@ export default function Campaigns() {
                                 className="h-8 px-3 border-green-200 text-green-700 hover:bg-green-50"
                               >
                                 <Play className="h-3 w-3 mr-1" />
-                                Resume
+                                {t('common.resume')}
                               </Button>
                             )}
                           </div>
@@ -473,24 +475,24 @@ export default function Campaigns() {
         <DialogContent className="glass-card border-gradient max-w-md">
           <DialogHeader>
             <DialogTitle className="text-gradient">
-              {editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}
+              {editingCampaign ? t('campaigns.editCampaign') : t('campaigns.createNewCampaign')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="campaign-name">Campaign Name</Label>
+              <Label htmlFor="campaign-name">{t('campaigns.campaignName')}</Label>
               <Input
                 id="campaign-name"
                 value={newCampaignName}
                 onChange={(e) => setNewCampaignName(e.target.value)}
-                placeholder="Enter campaign name"
+                placeholder={t('campaigns.campaignNamePlaceholder')}
                 className="input-gradient"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCancelEdit}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button 
               onClick={editingCampaign ? handleUpdateCampaign : handleCreateCampaign}
@@ -500,10 +502,10 @@ export default function Campaigns() {
               {(updateCampaignMutation.isPending) ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Updating...
+                  {t('campaigns.updating')}
                 </>
               ) : (
-                editingCampaign ? 'Update Campaign' : 'Create Campaign'
+                editingCampaign ? t('campaigns.updateCampaign') : t('campaigns.createCampaign')
               )}
             </Button>
           </DialogFooter>
@@ -514,14 +516,14 @@ export default function Campaigns() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent className="glass-card border-gradient">
           <DialogHeader>
-            <DialogTitle className="text-gradient">Delete Campaign</DialogTitle>
+            <DialogTitle className="text-gradient">{t('campaigns.deleteCampaign')}</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground">
-            Are you sure you want to delete this campaign? This action cannot be undone.
+            {t('campaigns.confirmDeleteMessage')}
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button 
               variant="destructive" 
@@ -532,10 +534,10 @@ export default function Campaigns() {
               {deleteCampaignMutation.isPending ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Deleting...
+                  {t('campaigns.deleting')}
                 </>
               ) : (
-                'Delete Campaign'
+                t('campaigns.deleteCampaign')
               )}
             </Button>
           </DialogFooter>

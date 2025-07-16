@@ -6,12 +6,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, FolderOpen } from "lucide-react";
 import { api } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 interface CampaignSelectorProps {
   onCampaignSelect: (campaign: any) => void;
 }
 
 export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorProps) {
+  const { t } = useTranslation();
   const [showNewCampaign, setShowNewCampaign] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
   const { toast } = useToast();
@@ -30,15 +32,15 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
       if (data.campaign) {
         onCampaignSelect(data.campaign);
         toast({
-          title: "Campaign Created",
-          description: "New campaign has been created successfully.",
+          title: t('campaignSelector.campaignCreated'),
+          description: t('campaignSelector.campaignCreatedSuccess'),
         });
       }
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to create campaign",
+        title: t('common.error'),
+        description: error.message || t('campaignSelector.createFailed'),
         variant: "destructive",
       });
     },
@@ -52,15 +54,15 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
       if (data.campaign) {
         onCampaignSelect(data.campaign);
         toast({
-          title: "Campaign Selected",
-          description: "Campaign has been loaded successfully.",
+          title: t('campaignSelector.campaignSelected'),
+          description: t('campaignSelector.campaignSelectedSuccess'),
         });
       }
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to select campaign",
+        title: t('common.error'),
+        description: error.message || t('campaignSelector.selectFailed'),
         variant: "destructive",
       });
     },
@@ -69,8 +71,8 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
   const handleCreateCampaign = () => {
     if (!newCampaignName.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please enter a campaign name",
+        title: t('campaignSelector.validationError'),
+        description: t('campaignSelector.enterCampaignNameError'),
         variant: "destructive",
       });
       return;
@@ -94,8 +96,8 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
             <FolderOpen className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-foreground">Campaign Selection</h3>
-            <p className="text-sm text-muted-foreground font-medium">Create a new campaign or select an existing one</p>
+            <h3 className="text-xl font-bold text-foreground">{t('campaignSelector.title')}</h3>
+            <p className="text-sm text-muted-foreground font-medium">{t('campaignSelector.subtitle')}</p>
           </div>
         </CardTitle>
       </CardHeader>
@@ -108,13 +110,13 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
             onClick={() => setShowNewCampaign(!showNewCampaign)}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Create New Campaign
+            {t('campaignSelector.createNewCampaign')}
           </Button>
 
           {showNewCampaign && (
             <div className="space-y-4 p-4 bg-accent/20 rounded-lg">
               <Input
-                placeholder="Enter campaign name"
+                placeholder={t('campaignSelector.enterCampaignName')}
                 value={newCampaignName}
                 onChange={(e) => setNewCampaignName(e.target.value)}
               />
@@ -123,7 +125,7 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
                 onClick={handleCreateCampaign}
                 disabled={initializeMutation.isPending}
               >
-                {initializeMutation.isPending ? "Creating..." : "Create Campaign"}
+                {initializeMutation.isPending ? t('campaignSelector.creating') : t('campaignSelector.createCampaign')}
               </Button>
             </div>
           )}
@@ -131,7 +133,7 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
 
         {/* Existing Campaigns Section */}
         <div className="space-y-4">
-          <h4 className="font-medium text-sm text-muted-foreground">Existing Campaigns</h4>
+          <h4 className="font-medium text-sm text-muted-foreground">{t('campaignSelector.existingCampaigns')}</h4>
           {campaignsData?.campaigns?.length > 0 ? (
             <div className="space-y-2">
               {campaignsData.campaigns.map((campaign: any) => (
@@ -151,7 +153,7 @@ export default function CampaignSelector({ onCampaignSelect }: CampaignSelectorP
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No existing campaigns found
+              {t('campaignSelector.noExistingCampaigns')}
             </p>
           )}
         </div>

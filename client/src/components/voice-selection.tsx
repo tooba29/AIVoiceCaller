@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, Pause, Upload, RefreshCw, Mic2, User, Bot } from "lucide-react";
 import { api, type Voice } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +18,7 @@ interface VoiceSelectionProps {
 }
 
 export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: VoiceSelectionProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"library" | "clone">("library");
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
@@ -60,14 +62,14 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voices"] });
       toast({
-        title: "Voices Refreshed",
-        description: "Voice library has been updated",
+        title: t('voiceSelection.voicesRefreshed'),
+        description: t('voiceSelection.voicesRefreshedMessage'),
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Refresh Failed",
-        description: error.message || "Failed to refresh voices",
+        title: t('voiceSelection.refreshFailed'),
+        description: error.message || t('voiceSelection.refreshFailedMessage'),
         variant: "destructive",
       });
     },
@@ -84,8 +86,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   const handleVoicePreview = async (voice: Voice) => {
     if (!voice.sampleUrl) {
       toast({
-        title: "No Preview Available",
-        description: "This voice doesn't have a preview available.",
+        title: t('voiceSelection.noPreviewAvailable'),
+        description: t('voiceSelection.noPreviewMessage'),
         variant: "destructive",
       });
       return;
@@ -135,8 +137,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
         console.error(`[Voice Selection] Audio error for voice ${voice.name}:`, error);
         cleanup();
         toast({
-          title: "Playback Error",
-          description: `Failed to play preview for ${voice.name}`,
+          title: t('voiceSelection.playbackError'),
+          description: t('voiceSelection.playbackErrorMessage', { voiceName: voice.name }),
           variant: "destructive",
         });
       };
@@ -162,8 +164,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
       console.error(`[Voice Selection] Error playing voice preview:`, error);
       setCurrentlyPlaying(null);
       toast({
-        title: "Playback Error",
-        description: "Failed to play voice preview",
+        title: t('voiceSelection.playbackError'),
+        description: t('voiceSelection.playbackErrorMessage', { voiceName: voice.name }),
         variant: "destructive",
       });
     }
@@ -175,8 +177,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
       api.uploadVoiceSample(file, data.name, data.description),
     onSuccess: (data) => {
       toast({
-        title: "Voice Cloned Successfully",
-        description: `${data.voice?.name} has been added to your voice library.`,
+        title: t('voiceSelection.voiceCloneSuccess'),
+        description: t('voiceSelection.voiceCloneSuccessMessage', { voiceName: data.voice?.name }),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/voices"] });
       setShowCloneDialog(false);
@@ -185,8 +187,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
     },
     onError: (error: any) => {
       toast({
-        title: "Voice Clone Failed",
-        description: error.message || "Failed to clone voice",
+        title: t('voiceSelection.voiceCloneFailed'),
+        description: error.message || t('voiceSelection.voiceCloneFailedMessage'),
         variant: "destructive",
       });
     },
@@ -195,8 +197,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   const handleVoiceClone = (file: File) => {
     if (!file.type.startsWith('audio/')) {
       toast({
-        title: "Invalid File",
-        description: "Please upload an audio file (MP3, WAV, M4A).",
+        title: t('voiceSelection.invalidFile'),
+        description: t('voiceSelection.uploadAudioFile'),
         variant: "destructive",
       });
       return;
@@ -204,8 +206,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
 
     if (file.size > 10 * 1024 * 1024) { // 10MB
       toast({
-        title: "File Too Large",
-        description: "Audio file must be smaller than 10MB.",
+        title: t('voiceSelection.fileTooLarge'),
+        description: t('voiceSelection.fileTooLargeMessage'),
         variant: "destructive",
       });
       return;
@@ -238,8 +240,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
   const handleConfirmClone = () => {
     if (!voiceName.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please enter a voice name.",
+        title: t('voiceSelection.validationError'),
+        description: t('voiceSelection.enterVoiceName'),
         variant: "destructive",
       });
       return;
@@ -248,8 +250,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
     const file = (window as any).tempAudioFile;
     if (!file) {
       toast({
-        title: "Error",
-        description: "No audio file found. Please try uploading again.",
+        title: t('common.error'),
+        description: t('voiceSelection.noAudioFile'),
         variant: "destructive",
       });
       return;
@@ -273,8 +275,8 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
               <Mic2 className="h-5 w-5 text-white" />
             </div>
             <div>
-              <span className="text-xl font-bold text-gradient">AI Voice Selection</span>
-              <p className="text-sm text-muted-foreground/80">Choose from premium or custom voices</p>
+              <span className="text-xl font-bold text-gradient">{t('voiceSelection.title')}</span>
+              <p className="text-sm text-muted-foreground/80">{t('voiceSelection.subtitle')}</p>
             </div>
           </div>
           <Button
@@ -293,11 +295,11 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="library" className="flex items-center space-x-2">
               <Bot className="h-4 w-4" />
-              <span>Voice Library</span>
+              <span>{t('voiceSelection.voiceLibrary')}</span>
             </TabsTrigger>
             <TabsTrigger value="clone" className="flex items-center space-x-2">
               <Upload className="h-4 w-4" />
-              <span>Clone Voice</span>
+              <span>{t('voiceSelection.cloneVoice')}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -347,7 +349,7 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
                             <h4 className="font-medium text-foreground">{voice.name}</h4>
                             {voice.isCloned && (
                               <span className="px-2 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 text-xs rounded-full font-medium border border-purple-200">
-                                Custom
+                                {t('voiceSelection.custom')}
                               </span>
                             )}
                             {selectedVoiceId === voice.id && (
@@ -385,9 +387,9 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
                 {(!voicesData?.voices || voicesData.voices.length === 0) && (
                   <div className="glass-card border-gradient p-8 text-center">
                     <Mic2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gradient mb-2">No Voices Available</h3>
+                    <h3 className="text-lg font-semibold text-gradient mb-2">{t('voiceSelection.noVoicesAvailable')}</h3>
                     <p className="text-sm text-muted-foreground">
-                      Upload a voice sample to create your first custom voice.
+                      {t('voiceSelection.noVoicesMessage')}
                     </p>
                   </div>
                 )}
@@ -402,7 +404,7 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
                 <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
                   <Upload className="h-4 w-4 text-white" />
                 </div>
-                <span>Create Custom Voice</span>
+                <span>{t('voiceSelection.createCustomVoice')}</span>
               </h4>
               <div
                 className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer relative overflow-hidden ${
@@ -424,9 +426,9 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
                   <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg hover:scale-110 transition-transform duration-300">
                     <Upload className="h-8 w-8 text-white" />
                   </div>
-                  <h4 className="text-lg font-semibold text-gradient mb-2">Upload Voice Sample</h4>
-                  <p className="text-sm font-medium text-slate-600 mb-1">Drag and drop your audio file here, or click to browse</p>
-                  <p className="text-xs text-slate-500">Supports MP3, WAV, M4A files • High-quality audio for best results</p>
+                  <h4 className="text-lg font-semibold text-gradient mb-2">{t('voiceSelection.uploadVoiceSample')}</h4>
+                  <p className="text-sm font-medium text-slate-600 mb-1">{t('voiceSelection.uploadPrompt')}</p>
+                  <p className="text-xs text-slate-500">{t('voiceSelection.supportedFormats')}</p>
                 </div>
                 <input
                   id="voice-upload"
@@ -440,13 +442,13 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
               <div className="mt-4 p-4 bg-blue-50/50 border border-blue-200/50 rounded-lg">
                 <h5 className="font-medium text-blue-900 mb-2 flex items-center space-x-2">
                   <Mic2 className="h-4 w-4" />
-                  <span>Voice Cloning Tips</span>
+                  <span>{t('voiceSelection.voiceCloningTips')}</span>
                 </h5>
                 <ul className="text-xs text-blue-700 space-y-1">
-                  <li>• Use clear, high-quality audio (at least 1 minute)</li>
-                  <li>• Avoid background noise and music</li>
-                  <li>• Include various emotions and tones</li>
-                  <li>• Speak naturally with proper pronunciation</li>
+                  <li>• {t('voiceSelection.tip1')}</li>
+                  <li>• {t('voiceSelection.tip2')}</li>
+                  <li>• {t('voiceSelection.tip3')}</li>
+                  <li>• {t('voiceSelection.tip4')}</li>
                 </ul>
               </div>
             </div>
@@ -457,40 +459,40 @@ export default function VoiceSelection({ selectedVoiceId, onVoiceSelect }: Voice
         <Dialog open={showCloneDialog} onOpenChange={setShowCloneDialog}>
           <DialogContent className="glass-card border-gradient">
             <DialogHeader>
-              <DialogTitle className="text-gradient">Create Custom Voice</DialogTitle>
+              <DialogTitle className="text-gradient">{t('voiceSelection.createCustomVoice')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="voice-name">Voice Name</Label>
+                <Label htmlFor="voice-name">{t('voiceSelection.voiceName')}</Label>
                 <Input
                   id="voice-name"
                   value={voiceName}
                   onChange={(e) => setVoiceName(e.target.value)}
-                  placeholder="Enter a name for this voice"
+                  placeholder={t('voiceSelection.voiceNamePlaceholder')}
                   className="input-gradient"
                 />
               </div>
               <div>
-                <Label htmlFor="voice-description">Description (optional)</Label>
+                <Label htmlFor="voice-description">{t('voiceSelection.voiceDescription')}</Label>
                 <Input
                   id="voice-description"
                   value={voiceDescription}
                   onChange={(e) => setVoiceDescription(e.target.value)}
-                  placeholder="Describe this voice"
+                  placeholder={t('voiceSelection.voiceDescriptionPlaceholder')}
                   className="input-gradient"
                 />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCloneDialog(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button 
                 onClick={handleConfirmClone}
                 disabled={cloneMutation.isPending || !voiceName.trim()}
                 className="btn-gradient"
               >
-                {cloneMutation.isPending ? "Creating..." : "Create Voice"}
+                {cloneMutation.isPending ? t('voiceSelection.creating') : t('voiceSelection.createVoice')}
               </Button>
             </DialogFooter>
           </DialogContent>

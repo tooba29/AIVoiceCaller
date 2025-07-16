@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Play, Phone, TrendingUp, Clock, BarChart3, XCircle, Target, CheckCircle } from "lucide-react";
 import { api } from "@/lib/api";
@@ -16,6 +17,7 @@ interface StatCard {
 }
 
 export default function StatsOverview() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<DashboardSettings>({
     selectedCharts: [
       { name: "Active Campaigns", type: "active_campaigns", icon: "Play", color: "blue" },
@@ -189,8 +191,23 @@ export default function StatsOverview() {
       const Icon = getChartIcon(chart.icon || "BarChart3");
       const statData = stats[chart.type as keyof typeof stats];
       
+      // Get translated title based on chart type
+      const getTranslatedTitle = (type: string) => {
+        switch(type) {
+          case 'active_campaigns': return t('stats.activeCampaigns');
+          case 'calls_today': return t('stats.callsToday');
+          case 'call_success': return t('stats.successRate');
+          case 'call_failure': return t('stats.connectionFailures');
+          case 'total_minutes': return t('stats.totalCallMinutes');
+          case 'avg_call_duration': return t('stats.avgCallDuration');
+          case 'total_campaigns': return t('stats.totalCampaigns');
+          case 'completed_calls': return t('stats.completedCalls');
+          default: return chart.name;
+        }
+      };
+      
       return {
-        title: chart.name,
+        title: getTranslatedTitle(chart.type),
         value: statData?.value || 0,
         icon: Icon,
         color: chart.color || "blue",
@@ -230,9 +247,9 @@ export default function StatsOverview() {
       <Card className="glass-card border-gradient">
         <CardContent className="p-8 text-center">
           <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gradient mb-2">No Statistics Selected</h3>
+          <h3 className="text-lg font-semibold text-gradient mb-2">{t('stats.noStatisticsSelected')}</h3>
           <p className="text-sm text-muted-foreground">
-            Go to Dashboard Settings to choose which statistics to display.
+            {t('stats.noStatisticsMessage')}
           </p>
         </CardContent>
       </Card>
@@ -285,7 +302,7 @@ export default function StatsOverview() {
                       }`}>
                         {stat.change}
                       </p>
-                      <span className="text-xs text-muted-foreground/60">vs last period</span>
+                      <span className="text-xs text-muted-foreground/60">{t('stats.vsLastPeriod')}</span>
                     </div>
                   )}
                 </div>

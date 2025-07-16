@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Upload, Save, Bot, Trash2, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 interface CampaignSetupProps {
   campaign: any;
@@ -14,6 +15,7 @@ interface CampaignSetupProps {
 }
 
 export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSetupProps) {
+  const { t } = useTranslation();
   const [firstPrompt, setFirstPrompt] = useState(
     campaign?.firstPrompt || "Hi {{first_name}}, I'm Sarah from Mathify. I hope you're having a great day!"
   );
@@ -136,8 +138,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
     onError: (error: any) => {
       console.error(`[Campaign Setup] ❌ Agent update failed:`, error);
       toast({
-        title: "Update Failed",
-        description: error.message || "Failed to update agent configuration.",
+        title: t('campaignSetup.updateFailed'),
+        description: error.message || t('campaignSetup.updateFailedMessage'),
         variant: "destructive",
       });
     },
@@ -159,10 +161,10 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
       setForceHideError(true);
       setRecentlyUploadedFile(data.knowledgeBase);
       
-      toast({
-        title: "PDF Uploaded",
-        description: `${data.knowledgeBase?.filename || 'File'} has been uploaded successfully.`,
-      });
+              toast({
+          title: t('campaignSetup.pdfUploaded'),
+          description: `${data.knowledgeBase?.filename || 'File'} ${t('campaignSetup.uploadedSuccessfully')}`,
+        });
       
       // Clear cache and force immediate refetch
       const campaignKnowledgeBaseKey = [`/api/campaigns/${campaign?.id}/knowledge-base`];
@@ -187,8 +189,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
     onError: (error: any) => {
       console.error(`[Campaign Setup] ❌ PDF upload failed:`, error);
       toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload PDF.",
+        title: t('campaignSetup.uploadFailed'),
+        description: error.message || t('campaignSetup.uploadFailedMessage'),
         variant: "destructive",
       });
     },
@@ -197,8 +199,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
   const handleUpdateAgent = () => {
     if (!firstPrompt.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please provide a first prompt message.",
+        title: t('campaignSetup.validationError'),
+        description: t('campaignSetup.provideFirstPrompt'),
         variant: "destructive",
       });
       return;
@@ -206,8 +208,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
 
     if (!campaign?.id) {
       toast({
-        title: "No Campaign Selected",
-        description: "Please select or create a campaign first.",
+        title: t('campaignSetup.noCampaignSelectedToast'),
+        description: t('campaignSetup.selectCampaignToast'),
         variant: "destructive",
       });
       return;
@@ -239,8 +241,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
         onCampaignUpdate(updatedCampaign);
         
         toast({
-          title: "Agent Updated",
-          description: "AI agent configuration has been saved successfully.",
+          title: t('campaignSetup.agentUpdated'),
+          description: t('campaignSetup.agentUpdatedSuccess'),
         });
         
         // Only invalidate campaigns list, not the knowledge base
@@ -254,8 +256,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
   const handlePDFUpload = (file: File) => {
     if (file.type !== 'application/pdf') {
       toast({
-        title: "Invalid File",
-        description: "Please upload a PDF file.",
+        title: t('campaignSetup.invalidFile'),
+        description: t('campaignSetup.uploadPdfOnly'),
         variant: "destructive",
       });
       return;
@@ -263,8 +265,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
 
     if (file.size > 10 * 1024 * 1024) { // 10MB
       toast({
-        title: "File Too Large",
-        description: "PDF file must be smaller than 10MB.",
+        title: t('campaignSetup.fileTooLarge'),
+        description: t('campaignSetup.pdfSizeLimit'),
         variant: "destructive",
       });
       return;
@@ -284,8 +286,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
       handlePDFUpload(pdfFile);
     } else {
       toast({
-        title: "Invalid File",
-        description: "Please upload a PDF file.",
+        title: t('campaignSetup.invalidFile'),
+        description: t('campaignSetup.uploadPdfOnly'),
         variant: "destructive",
       });
     }
@@ -306,9 +308,9 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
             <Bot className="h-8 w-8 text-white" />
           </div>
-          <h3 className="text-lg font-semibold text-gradient mb-2">No Campaign Selected</h3>
+          <h3 className="text-lg font-semibold text-gradient mb-2">{t('campaignSetup.noCampaignSelected')}</h3>
           <p className="text-muted-foreground">
-            Please select an existing campaign or create a new one using the Campaign Selector to continue.
+            {t('campaignSetup.noCampaignSelectedMessage')}
           </p>
         </CardContent>
       </Card>
@@ -325,8 +327,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
               <FileText className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gradient">Knowledge Base</h3>
-              <p className="text-sm text-muted-foreground/80 font-medium">Upload PDF files to train your AI agent</p>
+              <h3 className="text-xl font-bold text-gradient">{t('campaignSetup.knowledgeBaseTitle')}</h3>
+              <p className="text-sm text-muted-foreground/80 font-medium">{t('campaignSetup.knowledgeBaseSubtitle')}</p>
             </div>
           </CardTitle>
         </CardHeader>
@@ -352,14 +354,14 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg hover:scale-110 transition-transform duration-300">
                 <Upload className="h-8 w-8 text-white" />
               </div>
-              <p className="text-lg font-medium text-gradient mb-2">Drop your PDF files here</p>
-              <p className="text-sm text-muted-foreground/70 mb-4">or click to browse</p>
+              <p className="text-lg font-medium text-gradient mb-2">{t('campaignSetup.dropFilesHere')}</p>
+              <p className="text-sm text-muted-foreground/70 mb-4">{t('campaignSetup.clickToBrowse')}</p>
               <Button 
                 variant="default"
                 disabled={pdfUploadMutation.isPending}
                 className="btn-gradient"
               >
-                {pdfUploadMutation.isPending ? "Uploading..." : "Choose Files"}
+                {pdfUploadMutation.isPending ? t('campaignSetup.uploading') : t('campaignSetup.chooseFiles')}
               </Button>
             </div>
             <input
@@ -376,7 +378,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
             <div className="mt-4 p-4 bg-slate-50 rounded-lg">
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                <span className="text-sm text-slate-600">Loading knowledge base files...</span>
+                <span className="text-sm text-slate-600">{t('campaignSetup.loadingKnowledgeBase')}</span>
               </div>
             </div>
           )}
@@ -392,7 +394,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
             <div className="mt-4 p-4 bg-red-50 rounded-lg">
               <div className="flex items-center space-x-2">
                 <XCircle className="h-4 w-4 text-red-500" />
-                <span className="text-sm text-red-600">Failed to load knowledge base files</span>
+                <span className="text-sm text-red-600">{t('campaignSetup.loadKnowledgeBaseFailed')}</span>
               </div>
             </div>
           )}
@@ -403,7 +405,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
               <div className="flex items-center space-x-2 mb-2">
                 <FileText className="h-4 w-4 text-green-500" />
                 <span className="text-sm font-medium text-slate-700">
-                  {(knowledgeBase?.knowledgeBase?.length || 0) + (recentlyUploadedFile ? 1 : 0)} file(s) uploaded
+                  {(knowledgeBase?.knowledgeBase?.length || 0) + (recentlyUploadedFile ? 1 : 0)} {t('campaignSetup.filesUploaded')}
                 </span>
               </div>
               
@@ -421,7 +423,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-1 bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs rounded-full animate-pulse font-medium shadow-sm">
-                      Just Uploaded
+                      {t('campaignSetup.justUploaded')}
                     </span>
                   </div>
                 </div>
@@ -441,7 +443,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-1 bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs rounded-full font-medium">
-                      Uploaded
+                      {t('common.uploaded')}
                     </span>
                     <Button
                       variant="ghost"
@@ -450,7 +452,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                       onClick={() => {
                         if (campaign?.id) {
                           const confirmDelete = window.confirm(
-                            "Are you sure you want to delete this file? This will remove it from the AI agent's knowledge base."
+                            t('campaignSetup.confirmDeleteFile')
                           );
                           if (confirmDelete) {
                             console.log(`[Campaign Setup] 🗑️ Deleting file ${file.filename} (ID: ${file.id}) from campaign ${campaign.id}`);
@@ -462,8 +464,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                                 setForceHideError(true);
                                 
                                 toast({
-                                  title: "File Deleted",
-                                  description: `${file.filename} has been removed successfully.`,
+                                  title: t('campaignSetup.fileDeleted'),
+                                  description: `${file.filename} ${t('campaignSetup.fileDeletedSuccess')}`,
                                 });
                                 
                                 // Clear cache and refetch knowledge base
@@ -482,8 +484,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                               .catch((error) => {
                                 console.error(`[Campaign Setup] ❌ File deletion failed:`, error);
                                 toast({
-                                  title: "Delete Failed",
-                                  description: error.message || "Failed to delete file",
+                                  title: t('campaignSetup.fileDeleteFailed'),
+                                  description: error.message || t('campaignSetup.fileDeleteFailedMessage'),
                                   variant: "destructive",
                                 });
                               });
@@ -504,8 +506,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <div className="text-center">
                 <FileText className="h-8 w-8 text-blue-400 mx-auto mb-2" />
-                <p className="text-sm text-blue-600">Please select or create a campaign first</p>
-                <p className="text-xs text-blue-500">Knowledge base files are campaign-specific</p>
+                <p className="text-sm text-blue-600">{t('campaignSetup.selectCampaignFirst')}</p>
+                <p className="text-xs text-blue-500">{t('campaignSetup.knowledgeBaseSpecific')}</p>
               </div>
             </div>
           )}
@@ -515,8 +517,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
             <div className="mt-4 p-4 bg-slate-50 rounded-lg">
               <div className="text-center">
                 <FileText className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm text-slate-600">No knowledge base files uploaded yet</p>
-                <p className="text-xs text-slate-500">Upload PDF files to train your AI agent</p>
+                <p className="text-sm text-slate-600">{t('campaignSetup.noFilesUploaded')}</p>
+                <p className="text-xs text-slate-500">{t('campaignSetup.uploadPdfsToTrain')}</p>
               </div>
             </div>
           )}
@@ -531,8 +533,8 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
               <Bot className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gradient">AI Configuration</h3>
-              <p className="text-sm text-muted-foreground/80 font-medium">Set up your AI agent's personality and behavior</p>
+              <h3 className="text-xl font-bold text-gradient">{t('campaignSetup.aiConfigurationTitle')}</h3>
+              <p className="text-sm text-muted-foreground/80 font-medium">{t('campaignSetup.aiConfigurationSubtitle')}</p>
             </div>
           </CardTitle>
         </CardHeader>
@@ -540,7 +542,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
           {/* First Prompt */}
           <div>
             <Label htmlFor="first-prompt" className="text-sm font-medium text-slate-700">
-              First Prompt
+              {t('campaignSetup.firstPrompt')}
             </Label>
             <Textarea
               id="first-prompt"
@@ -555,7 +557,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
           {/* System Persona - Disabled */}
           <div>
             <Label htmlFor="system-persona" className="text-sm font-medium text-slate-700">
-              System Persona (Fixed)
+              {t('campaignSetup.systemPersonaFixed')}
             </Label>
             <Textarea
               id="system-persona"
@@ -565,7 +567,7 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
               rows={4}
             />
             <p className="mt-1 text-xs text-slate-500">
-              The system persona is pre-configured for optimal performance.
+              {t('campaignSetup.systemPersonaNote')}
             </p>
           </div>
 
@@ -577,12 +579,12 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
             {updateAgentMutation.isPending ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Updating...
+                {t('campaignSetup.updating')}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" />
-                Update Agent
+                {t('campaignSetup.updateAgent')}
               </>
             )}
           </Button>

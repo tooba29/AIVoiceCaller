@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,28 +19,58 @@ export interface DashboardSettings {
   compactView: boolean;
 }
 
-const AVAILABLE_CHARTS: DashboardChart[] = [
-  { name: "Active Campaigns", type: "active_campaigns", icon: "Play", color: "blue" },
-  { name: "Calls Today", type: "calls_today", icon: "Phone", color: "green" },
-  { name: "Success Rate", type: "call_success", icon: "TrendingUp", color: "emerald" },
-  { name: "Connection Failures", type: "call_failure", icon: "XCircle", color: "red" },
-  { name: "Total Call Minutes", type: "total_minutes", icon: "Clock", color: "purple" },
-  { name: "Avg Call Duration", type: "avg_call_duration", icon: "BarChart3", color: "indigo" },
-  { name: "Total Campaigns", type: "total_campaigns", icon: "Target", color: "orange" },
-  { name: "Completed Calls", type: "completed_calls", icon: "CheckCircle", color: "teal" }
+// Chart types for translation
+const CHART_TYPES = [
+  { type: "active_campaigns", icon: "Play", color: "blue" },
+  { type: "calls_today", icon: "Phone", color: "green" },
+  { type: "call_success", icon: "TrendingUp", color: "emerald" },
+  { type: "call_failure", icon: "XCircle", color: "red" },
+  { type: "total_minutes", icon: "Clock", color: "purple" },
+  { type: "avg_call_duration", icon: "BarChart3", color: "indigo" },
+  { type: "total_campaigns", icon: "Target", color: "orange" },
+  { type: "completed_calls", icon: "CheckCircle", color: "teal" }
 ];
 
-const DEFAULT_SETTINGS: DashboardSettings = {
-  selectedCharts: AVAILABLE_CHARTS.slice(0, 4), // First 4 charts by default
-  refreshInterval: 30, // 30 seconds
-  showAnimations: true,
-  compactView: false
-};
+const DEFAULT_CHART_TYPES = CHART_TYPES.slice(0, 4); // First 4 charts by default
 
 export default function DashboardSettings() {
-  const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS);
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Get translated chart names
+  const getTranslatedChartName = (type: string) => {
+    switch(type) {
+      case 'active_campaigns': return t('stats.activeCampaigns');
+      case 'calls_today': return t('stats.callsToday');
+      case 'call_success': return t('stats.successRate');
+      case 'call_failure': return t('stats.connectionFailures');
+      case 'total_minutes': return t('stats.totalCallMinutes');
+      case 'avg_call_duration': return t('stats.avgCallDuration');
+      case 'total_campaigns': return t('stats.totalCampaigns');
+      case 'completed_calls': return t('stats.completedCalls');
+      default: return type;
+    }
+  };
+  
+  // Get available charts with translations
+  const getAvailableCharts = (): DashboardChart[] => {
+    return CHART_TYPES.map(chartType => ({
+      name: getTranslatedChartName(chartType.type),
+      type: chartType.type,
+      icon: chartType.icon,
+      color: chartType.color
+    }));
+  };
+  
+  const DEFAULT_SETTINGS: DashboardSettings = {
+    selectedCharts: getAvailableCharts().slice(0, 4), // First 4 charts by default
+    refreshInterval: 30, // 30 seconds
+    showAnimations: true,
+    compactView: false
+  };
+  
+  const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS);
 
 
 
@@ -98,8 +129,8 @@ export default function DashboardSettings() {
     queryClient.invalidateQueries({ queryKey: ["dashboard-settings"] });
     
     toast({
-      title: "Settings Saved",
-      description: `Dashboard updated with ${settings.selectedCharts.length} charts and ${settings.refreshInterval}s refresh interval.`,
+      title: t('settings.settingsSaved'),
+      description: t('settings.settingsSavedMessage'),
     });
   };
 
@@ -110,8 +141,8 @@ export default function DashboardSettings() {
     queryClient.invalidateQueries({ queryKey: ["dashboard-settings"] });
     
     toast({
-      title: "Settings Reset",
-      description: "Dashboard settings have been reset to defaults.",
+      title: t('settings.settingsReset'),
+      description: t('settings.settingsResetMessage'),
     });
   };
 
@@ -131,14 +162,14 @@ export default function DashboardSettings() {
       <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Dashboard Statistics</span>
-            <Badge variant="outline">{settings.selectedCharts.length} selected</Badge>
+            <span>{t('settings.dashboardStatistics')}</span>
+            <Badge variant="outline">{settings.selectedCharts.length} {t('stats.selected')}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3">
-              {AVAILABLE_CHARTS.map((chart) => {
+              {getAvailableCharts().map((chart) => {
                 const Icon = getChartIcon(chart.icon || "BarChart3");
                 const isSelected = settings.selectedCharts.some(c => c.type === chart.type);
                 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { api, type Voice } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 
 export default function Voices() {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [showCloneForm, setShowCloneForm] = useState(false);
   const [cloneName, setCloneName] = useState("");
@@ -295,17 +297,17 @@ export default function Voices() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">
-                Voice Library
+                {t('voiceSelection.voiceLibrary')}
               </h2>
-              <p className="text-muted-foreground mt-2">Manage and clone voices for your campaigns</p>
+              <p className="text-muted-foreground mt-2">{t('voiceSelection.subtitle')}</p>
             </div>
-            <Button 
-              onClick={() => setShowCloneForm(true)}
-              className="bg-primary hover:bg-primary/90 shadow-lg"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Clone Voice
-            </Button>
+                          <Button 
+                onClick={() => setShowCloneForm(true)}
+                className="bg-primary hover:bg-primary/90 shadow-lg"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {t('voiceSelection.cloneVoice')}
+              </Button>
           </div>
         </header>
 

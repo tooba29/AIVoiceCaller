@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Upload, FileSpreadsheet, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 interface LeadsUploadProps {
   campaignId?: number;
@@ -14,6 +15,7 @@ interface LeadsUploadProps {
 }
 
 export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }: LeadsUploadProps) {
+  const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -24,16 +26,16 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
       api.uploadCSV(file, campaignId.toString()),
     onSuccess: (data) => {
       toast({
-        title: "CSV Uploaded",
-        description: `Successfully uploaded ${data.leadsCount} leads.`,
+        title: t('leadsUpload.leadsUploaded'),
+        description: t('leadsUpload.leadsUploadedSuccess', { count: data.leadsCount }),
       });
       onLeadsUpload(data.leads || []);
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
     onError: (error: any) => {
       toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload CSV.",
+        title: t('leadsUpload.uploadFailed'),
+        description: error.message || t('leadsUpload.uploadFailedMessage'),
         variant: "destructive",
       });
     },
@@ -44,16 +46,16 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
     mutationFn: (campaignId: number) => api.deleteLeads(campaignId),
     onSuccess: (data) => {
       toast({
-        title: "Leads Deleted",
-        description: `Successfully deleted ${data.deletedCount} leads.`,
+        title: t('leadsUpload.leadsDeleted'),
+        description: t('leadsUpload.leadsDeletedSuccess'),
       });
       onLeadsUpload([]); // Clear the leads from the parent component
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
     onError: (error: any) => {
       toast({
-        title: "Delete Failed",
-        description: error.message || "Failed to delete leads.",
+        title: t('leadsUpload.deleteFailed'),
+        description: error.message || t('leadsUpload.deleteFailedMessage'),
         variant: "destructive",
       });
     },
@@ -62,8 +64,8 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
   const handleCSVUpload = (file: File) => {
     if (!campaignId) {
       toast({
-        title: "No Campaign",
-        description: "Please create or select a campaign first.",
+        title: t('leadsUpload.noCampaign'),
+        description: t('leadsUpload.createCampaignFirst'),
         variant: "destructive",
       });
       return;
@@ -71,8 +73,8 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 
     if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
       toast({
-        title: "Invalid File",
-        description: "Please upload a CSV file.",
+        title: t('leadsUpload.invalidCsv'),
+        description: t('leadsUpload.csvFormatError'),
         variant: "destructive",
       });
       return;
@@ -80,8 +82,8 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 
     if (file.size > 5 * 1024 * 1024) { // 5MB
       toast({
-        title: "File Too Large",
-        description: "CSV file must be smaller than 5MB.",
+        title: t('voiceSelection.fileTooLarge'),
+        description: t('leadsUpload.csvTooLarge'),
         variant: "destructive",
       });
       return;
@@ -103,8 +105,8 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
       handleCSVUpload(csvFile);
     } else {
       toast({
-        title: "Invalid File",
-        description: "Please upload a CSV file.",
+        title: t('leadsUpload.invalidCsv'),
+        description: t('leadsUpload.csvFormatError'),
         variant: "destructive",
       });
     }
@@ -120,8 +122,8 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
   const handleDeleteLeads = () => {
     if (!campaignId) {
       toast({
-        title: "No Campaign",
-        description: "Please create or select a campaign first.",
+        title: t('leadsUpload.noCampaign'),
+        description: t('leadsUpload.createCampaignFirst'),
         variant: "destructive",
       });
       return;
@@ -129,15 +131,15 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 
     if (uploadedLeads.length === 0) {
       toast({
-        title: "No Leads",
-        description: "There are no leads to delete.",
+        title: t('leadsUpload.noLeads'),
+        description: t('leadsUpload.noLeadsToDelete'),
         variant: "destructive",
       });
       return;
     }
 
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete all ${uploadedLeads.length} uploaded leads? This action cannot be undone.`
+      t('leadsUpload.confirmDeleteLeads', { count: uploadedLeads.length })
     );
 
     if (confirmDelete) {
@@ -153,8 +155,8 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
             <Users className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-foreground">Lead Management</h3>
-            <p className="text-sm text-muted-foreground font-medium">Upload and manage your calling lists</p>
+            <h3 className="text-xl font-bold text-foreground">{t('leadsUpload.title')}</h3>
+            <p className="text-sm text-muted-foreground font-medium">{t('leadsUpload.subtitle')}</p>
           </div>
         </CardTitle>
       </CardHeader>
@@ -175,9 +177,9 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
           onClick={() => document.getElementById('csv-upload')?.click()}
         >
           <FileSpreadsheet className="h-8 w-8 text-slate-400 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-600 mb-2">Upload CSV File</p>
+          <p className="text-sm font-medium text-slate-600 mb-2">{t('leadsUpload.uploadCsv')}</p>
           <p className="text-xs text-slate-500 mb-3">
-            Required columns: first_name, last_name, contact_no
+            {t('leadsUpload.requiredColumns')}
           </p>
           <Button
             variant="default"
@@ -187,12 +189,12 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
             {csvUploadMutation.isPending ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Uploading...
+                {t('leadsUpload.uploading')}
               </>
             ) : (
               <>
                 <Upload className="h-4 w-4 mr-2" />
-                Upload CSV
+                {t('leadsUpload.uploadCsv')}
               </>
             )}
           </Button>
@@ -208,7 +210,7 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
         {!campaignId && (
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
             <p className="text-sm text-yellow-700">
-              Please create a campaign first to upload leads.
+              {t('leadsUpload.createCampaignFirst')}
             </p>
           </div>
         )}
@@ -217,10 +219,10 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
         {uploadedLeads.length > 0 && (
           <div className="bg-slate-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-slate-700">Uploaded Leads</p>
+              <p className="text-sm font-medium text-slate-700">{t('leadsUpload.leadPreview')}</p>
               <div className="flex items-center space-x-2">
                 <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                  {uploadedLeads.length} contacts
+                  {uploadedLeads.length} {t('leadsUpload.contacts')}
                 </Badge>
                 <Button
                   variant="outline"
@@ -232,12 +234,12 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
                   {deleteLeadsMutation.isPending ? (
                     <>
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
-                      Deleting...
+                      {t('leadsUpload.deleting')}
                     </>
                   ) : (
                     <>
                       <Trash2 className="h-3 w-3 mr-1" />
-                      Delete All
+                      {t('leadsUpload.deleteAllLeads')}
                     </>
                   )}
                 </Button>
@@ -254,7 +256,7 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
               ))}
               {uploadedLeads.length > 10 && (
                 <div className="py-2 px-3 text-center text-xs text-slate-500 bg-white rounded">
-                  +{uploadedLeads.length - 10} more contacts...
+                  +{uploadedLeads.length - 10} {t('leadsUpload.moreContacts')}
                 </div>
               )}
             </div>

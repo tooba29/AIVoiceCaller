@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +9,7 @@ import { api } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 
 export default function Analytics() {
+  const { t } = useTranslation();
   const [timeRange, setTimeRange] = useState("7d");
 
   const { data: campaignsData } = useQuery({
@@ -26,28 +28,28 @@ export default function Analytics() {
 
   const analyticsCards = [
     {
-      title: "Total Campaigns",
+      title: t('analytics.totalCampaigns'),
       value: totalCampaigns,
       icon: Target,
       color: "blue",
       change: "+12%",
     },
     {
-      title: "Active Campaigns", 
+      title: t('analytics.activeCampaigns'), 
       value: activeCampaigns,
       icon: Play,
       color: "green",
       change: "+8%",
     },
     {
-      title: "Total Calls",
+      title: t('analytics.totalCalls'),
       value: totalCalls,
       icon: Phone,
       color: "purple",
       change: "+23%",
     },
     {
-      title: "Success Rate",
+      title: t('analytics.successRate'),
       value: `${successRate}%`,
       icon: TrendingUp,
       color: "emerald",
@@ -74,9 +76,9 @@ export default function Analytics() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">
-                Analytics
+                {t('analytics.title')}
               </h2>
-              <p className="text-muted-foreground mt-2">Track performance and insights for your campaigns</p>
+              <p className="text-muted-foreground mt-2">{t('analytics.subtitle')}</p>
             </div>
             <div className="flex items-center space-x-4">
               <Select value={timeRange} onValueChange={setTimeRange}>
@@ -84,15 +86,15 @@ export default function Analytics() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="24h">Last 24 hours</SelectItem>
-                  <SelectItem value="7d">Last 7 days</SelectItem>
-                  <SelectItem value="30d">Last 30 days</SelectItem>
-                  <SelectItem value="90d">Last 90 days</SelectItem>
+                  <SelectItem value="24h">{t('analytics.last24Hours')}</SelectItem>
+                  <SelectItem value="7d">{t('analytics.last7Days')}</SelectItem>
+                  <SelectItem value="30d">{t('analytics.last30Days')}</SelectItem>
+                  <SelectItem value="90d">{t('analytics.last90Days')}</SelectItem>
                 </SelectContent>
               </Select>
               <Button className="bg-primary hover:bg-primary/90 shadow-lg">
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {t('analytics.export')}
               </Button>
             </div>
           </div>
@@ -136,15 +138,15 @@ export default function Analytics() {
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-md">
                       <BarChart3 className="h-5 w-5 text-white" />
                     </div>
-                    <span>Call Volume</span>
+                    <span>{t('analytics.callVolume')}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="h-64 flex items-center justify-center bg-muted/20 rounded-xl">
                     <div className="text-center">
                       <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground">Call volume chart</p>
-                      <p className="text-sm text-muted-foreground/70">Chart visualization would appear here</p>
+                      <p className="text-muted-foreground">{t('analytics.callVolumeChart')}</p>
+                      <p className="text-sm text-muted-foreground/70">{t('analytics.chartVisualization')}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -157,15 +159,15 @@ export default function Analytics() {
                     <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-md">
                       <TrendingUp className="h-5 w-5 text-white" />
                     </div>
-                    <span>Success Rate Trend</span>
+                    <span>{t('analytics.successRateTrend')}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="h-64 flex items-center justify-center bg-muted/20 rounded-xl">
                     <div className="text-center">
                       <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground">Success rate trend</p>
-                      <p className="text-sm text-muted-foreground/70">Trend visualization would appear here</p>
+                      <p className="text-muted-foreground">{t('analytics.successRateTrendChart')}</p>
+                      <p className="text-sm text-muted-foreground/70">{t('analytics.trendVisualization')}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -186,20 +188,20 @@ export default function Analytics() {
                 {campaigns.length === 0 ? (
                   <div className="text-center py-12">
                     <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">No Campaign Data</h3>
-                    <p className="text-muted-foreground">Create campaigns to see performance analytics here.</p>
+                    <h3 className="text-lg font-medium text-foreground mb-2">{t('analytics.noCampaignData')}</h3>
+                    <p className="text-muted-foreground">{t('analytics.noCampaignDataMessage')}</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-border">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Campaign</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
-                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">Total Leads</th>
-                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">Completed</th>
-                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">Success Rate</th>
-                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">Created</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">{t('analytics.campaign')}</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">{t('analytics.status')}</th>
+                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">{t('analytics.totalLeads')}</th>
+                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">{t('analytics.completed')}</th>
+                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">{t('analytics.successRate')}</th>
+                          <th className="text-center py-3 px-4 font-medium text-muted-foreground">{t('analytics.created')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -246,13 +248,13 @@ export default function Analytics() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-3 text-lg">
                     <Clock className="h-5 w-5 text-primary" />
-                    <span>Average Call Duration</span>
+                    <span>{t('analytics.averageCallDuration')}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center">
-                    <p className="text-3xl font-bold text-foreground">2.4m</p>
-                    <p className="text-sm text-muted-foreground mt-1">Per call average</p>
+                    <p className="text-3xl font-bold text-foreground">{t('analytics.averageCallDurationValue')}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t('analytics.perCallAverage')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -261,13 +263,13 @@ export default function Analytics() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-3 text-lg">
                     <Calendar className="h-5 w-5 text-primary" />
-                    <span>Peak Hours</span>
+                    <span>{t('analytics.peakHours')}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center">
-                    <p className="text-3xl font-bold text-foreground">2-4 PM</p>
-                    <p className="text-sm text-muted-foreground mt-1">Best call times</p>
+                    <p className="text-3xl font-bold text-foreground">{t('analytics.peakHoursValue')}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t('analytics.bestCallTimes')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -276,13 +278,13 @@ export default function Analytics() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-3 text-lg">
                     <Phone className="h-5 w-5 text-primary" />
-                    <span>Daily Average</span>
+                    <span>{t('analytics.dailyAverage')}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center">
                     <p className="text-3xl font-bold text-foreground">{Math.round(totalCalls / 7)}</p>
-                    <p className="text-sm text-muted-foreground mt-1">Calls per day</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t('analytics.callsPerDay')}</p>
                   </div>
                 </CardContent>
               </Card>

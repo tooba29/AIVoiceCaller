@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import Sidebar from "@/components/sidebar";
 import { useToast } from "@/hooks/use-toast";
 
 export default function CampaignDetails() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -242,11 +244,11 @@ export default function CampaignDetails() {
         <Sidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Campaign Not Found</h2>
-            <p className="text-muted-foreground mb-4">The requested campaign could not be found.</p>
+            <h2 className="text-2xl font-bold text-foreground mb-2">{t('errors.notFound')}</h2>
+            <p className="text-muted-foreground mb-4">{t('errors.notFound')}</p>
             <Button onClick={() => setLocation('/campaigns')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Campaigns
+              {t('campaignDetails.backToCampaigns')}
             </Button>
           </div>
         </div>
@@ -278,18 +280,18 @@ export default function CampaignDetails() {
         <div className="border-b border-border bg-card/50 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setLocation('/campaigns')}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Campaigns
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">{campaign.name}</h1>
-                <p className="text-muted-foreground">Campaign Details & Conversations</p>
-              </div>
+                              <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLocation('/campaigns')}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  {t('campaignDetails.backToCampaigns')}
+                </Button>
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">{campaign.name}</h1>
+                  <p className="text-muted-foreground">{t('campaignDetails.title')}</p>
+                </div>
             </div>
             <Badge className={getStatusColor(campaign.status)}>
               {campaign.status}
@@ -307,7 +309,7 @@ export default function CampaignDetails() {
                 <div className="flex items-center space-x-2">
                   <Users className="h-5 w-5 text-blue-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Leads</p>
+                    <p className="text-sm text-muted-foreground">{t('campaigns.totalLeads')}</p>
                     <p className="text-2xl font-bold text-foreground">{stats.totalLeads}</p>
                   </div>
                 </div>
@@ -319,7 +321,7 @@ export default function CampaignDetails() {
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5 text-green-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Completed</p>
+                    <p className="text-sm text-muted-foreground">{t('campaigns.completed')}</p>
                     <p className="text-2xl font-bold text-foreground">{stats.completed}</p>
                   </div>
                 </div>
@@ -331,7 +333,7 @@ export default function CampaignDetails() {
                 <div className="flex items-center space-x-2">
                   <XCircle className="h-5 w-5 text-red-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Failed</p>
+                    <p className="text-sm text-muted-foreground">{t('campaigns.failed')}</p>
                     <p className="text-2xl font-bold text-foreground">{stats.failed}</p>
                   </div>
                 </div>
@@ -343,7 +345,7 @@ export default function CampaignDetails() {
                 <div className="flex items-center space-x-2">
                   <Clock className="h-5 w-5 text-yellow-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-sm text-muted-foreground">{t('campaigns.pending')}</p>
                     <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
                   </div>
                 </div>
@@ -354,12 +356,12 @@ export default function CampaignDetails() {
           {/* Progress */}
           <Card>
             <CardHeader>
-              <CardTitle>Campaign Progress</CardTitle>
+              <CardTitle>{t('campaignDetails.campaignOverview')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Completed Calls</span>
+                  <span>{t('campaigns.completedCalls')}</span>
                   <span>{campaign.completedCalls || 0} / {campaign.totalLeads}</span>
                 </div>
                 <Progress 
@@ -375,22 +377,22 @@ export default function CampaignDetails() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Volume2 className="h-5 w-5" />
-                <span>Conversations ({conversations.length})</span>
+                <span>{t('campaignDetails.conversations')} ({conversations.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               {conversations.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Lead</TableHead>
-                      <TableHead>Phone Number</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Audio</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('campaignDetails.lead')}</TableHead>
+                        <TableHead>{t('campaignDetails.phoneNumber')}</TableHead>
+                        <TableHead>{t('campaignDetails.status')}</TableHead>
+                        <TableHead>{t('campaignDetails.duration')}</TableHead>
+                        <TableHead>{t('campaignDetails.callDate')}</TableHead>
+                        <TableHead>{t('campaignDetails.audio')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
                     {conversations.map((conversation: any) => {
                       const lead = leads.find((l: any) => l.id === conversation.leadId);
@@ -442,9 +444,9 @@ export default function CampaignDetails() {
               ) : (
                 <div className="text-center py-8">
                   <Volume2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No Conversations Yet</h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">{t('campaignDetails.noConversations')}</h3>
                   <p className="text-muted-foreground">
-                    Conversations will appear here once calls are made for this campaign.
+                    {t('campaignDetails.noConversationsMessage')}
                   </p>
                 </div>
               )}
@@ -456,7 +458,7 @@ export default function CampaignDetails() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Phone className="h-5 w-5 text-orange-500" />
-                <span>Test Calls ({testCalls.length})</span>
+                <span>{t('campaignDetails.testCalls')} ({testCalls.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -464,11 +466,11 @@ export default function CampaignDetails() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Phone Number</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Audio</TableHead>
+                      <TableHead>{t('campaignDetails.phoneNumber')}</TableHead>
+                      <TableHead>{t('campaignDetails.status')}</TableHead>
+                      <TableHead>{t('campaignDetails.duration')}</TableHead>
+                      <TableHead>{t('campaignDetails.callDate')}</TableHead>
+                      <TableHead>{t('campaignDetails.audio')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -477,7 +479,7 @@ export default function CampaignDetails() {
                         <TableCell>
                           <div className="flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs bg-orange-100 text-orange-700 border-orange-300">
-                              TEST
+                              {t('campaignDetails.testBadge')}
                             </Badge>
                             <span>{testCall.phoneNumber}</span>
                           </div>
@@ -527,9 +529,9 @@ export default function CampaignDetails() {
               ) : (
                 <div className="text-center py-8">
                   <Phone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No Test Calls Yet</h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">{t('campaignDetails.noTestCalls')}</h3>
                   <p className="text-muted-foreground">
-                    Test calls made for this campaign will appear here with their audio recordings.
+                    {t('campaignDetails.noTestCallsMessage')}
                   </p>
                 </div>
               )}
@@ -541,7 +543,7 @@ export default function CampaignDetails() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Phone className="h-5 w-5" />
-                <span>Campaign Call Logs ({campaignCalls.length})</span>
+                <span>{t('campaignDetails.campaignCallLogs')} ({campaignCalls.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -549,12 +551,12 @@ export default function CampaignDetails() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Lead</TableHead>
-                      <TableHead>Phone Number</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Has Audio</TableHead>
+                      <TableHead>{t('campaignDetails.lead')}</TableHead>
+                      <TableHead>{t('campaignDetails.phoneNumber')}</TableHead>
+                      <TableHead>{t('campaignDetails.status')}</TableHead>
+                      <TableHead>{t('campaignDetails.duration')}</TableHead>
+                      <TableHead>{t('campaignDetails.callDate')}</TableHead>
+                      <TableHead>{t('campaignDetails.audio')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -591,9 +593,9 @@ export default function CampaignDetails() {
               ) : (
                 <div className="text-center py-8">
                   <Phone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No Calls Yet</h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">{t('campaignDetails.noCallsYet')}</h3>
                   <p className="text-muted-foreground">
-                    Call logs will appear here once the campaign is started.
+                    {t('campaignDetails.noCallsMessage')}
                   </p>
                 </div>
               )}
