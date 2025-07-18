@@ -399,13 +399,12 @@ export const api = {
 
   deleteKnowledgeBase: async (id: number, campaignId: number) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/knowledge-base/${id}`, {
+      const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/knowledge-base/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ campaignId }),
       });
 
       if (!response.ok) {

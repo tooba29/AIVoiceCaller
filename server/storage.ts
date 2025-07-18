@@ -61,6 +61,7 @@ export interface IStorage {
   getCallLogsByCampaign(campaignId: number): Promise<CallLog[]>;
   getAllCallLogs(): Promise<CallLog[]>;
   updateCallLog(id: number, updates: Partial<CallLog>): Promise<CallLog | undefined>;
+  updateCallLogByTwilioSid(twilioSid: string, updates: Partial<CallLog>): Promise<CallLog | undefined>;
   deleteCallLog(id: number): Promise<void>;
 }
 
@@ -288,6 +289,14 @@ export class DatabaseStorage implements IStorage {
     const [updatedCallLog] = await db.update(callLogs)
       .set(updates)
       .where(eq(callLogs.id, id))
+      .returning();
+    return updatedCallLog;
+  }
+
+  async updateCallLogByTwilioSid(twilioSid: string, updates: Partial<CallLog>): Promise<CallLog | undefined> {
+    const [updatedCallLog] = await db.update(callLogs)
+      .set(updates)
+      .where(eq(callLogs.twilioCallSid, twilioSid))
       .returning();
     return updatedCallLog;
   }

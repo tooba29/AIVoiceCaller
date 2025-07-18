@@ -34,8 +34,23 @@ export default defineConfig({
   },
   server: {
     fs: {
-      strict: true,
-      deny: ["**/.*"],
+      strict: false, // Allow serving files from outside the root directory
+      allow: ['..'], // Allow serving files from parent directory
     },
+    host: '0.0.0.0', // Listen on all network interfaces
+    port: 8000, // Specify the port explicitly
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    },
+    cors: true, // Enable CORS
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '.ngrok-free.app',
+      'c9a99946e68e.ngrok-free.app', // Add your specific ngrok domain
+    ],
   },
 });

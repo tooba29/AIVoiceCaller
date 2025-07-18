@@ -46,12 +46,14 @@ export default function CampaignDetails() {
       return api.getCampaignDetails(parseInt(id!));
     },
     enabled: !!id,
+    refetchInterval: 5000, // Refetch every 5 seconds to keep data fresh
+    refetchOnWindowFocus: true // Refetch when window regains focus
   });
 
   // Log campaign data when it loads
   useEffect(() => {
     if (campaignData) {
-      const { campaign, leads, callLogs } = campaignData;
+      const { campaign, leads = [], callLogs = [] } = campaignData;
       
       // Separate call types
       const leadIds = new Set(leads.map((lead: any) => lead.id));
@@ -238,17 +240,17 @@ export default function CampaignDetails() {
     );
   }
 
-  if (!campaignData) {
+  if (!campaignData || !campaignData.campaign) {
     return (
       <div className="flex h-screen bg-background">
         <Sidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-foreground mb-2">{t('errors.notFound')}</h2>
-            <p className="text-muted-foreground mb-4">{t('errors.notFound')}</p>
+            <p className="text-muted-foreground mb-4">{t('errors.campaignNotFound')}</p>
             <Button onClick={() => setLocation('/campaigns')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              {t('campaignDetails.backToCampaigns')}
+              {t('common.back')}
             </Button>
           </div>
         </div>
@@ -256,7 +258,7 @@ export default function CampaignDetails() {
     );
   }
 
-  const { campaign, leads, callLogs, stats } = campaignData;
+  const { campaign, leads = [], callLogs = [], stats = { totalLeads: 0, completed: 0, failed: 0, pending: 0 } } = campaignData;
   
   // Get conversations (call logs with conversation IDs)
   const conversations = callLogs.filter((log: any) => log.elevenLabsConversationId);
@@ -310,7 +312,7 @@ export default function CampaignDetails() {
                   <Users className="h-5 w-5 text-blue-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">{t('campaigns.totalLeads')}</p>
-                    <p className="text-2xl font-bold text-foreground">{stats.totalLeads}</p>
+                    <p className="text-2xl font-bold text-foreground">{stats?.totalLeads || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -322,7 +324,7 @@ export default function CampaignDetails() {
                   <CheckCircle className="h-5 w-5 text-green-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">{t('campaigns.completed')}</p>
-                    <p className="text-2xl font-bold text-foreground">{stats.completed}</p>
+                    <p className="text-2xl font-bold text-foreground">{stats?.completed || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -334,7 +336,7 @@ export default function CampaignDetails() {
                   <XCircle className="h-5 w-5 text-red-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">{t('campaigns.failed')}</p>
-                    <p className="text-2xl font-bold text-foreground">{stats.failed}</p>
+                    <p className="text-2xl font-bold text-foreground">{stats?.failed || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -346,7 +348,7 @@ export default function CampaignDetails() {
                   <Clock className="h-5 w-5 text-yellow-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">{t('campaigns.pending')}</p>
-                    <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
+                    <p className="text-2xl font-bold text-foreground">{stats?.pending || 0}</p>
                   </div>
                 </div>
               </CardContent>

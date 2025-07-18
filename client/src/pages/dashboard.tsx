@@ -201,19 +201,38 @@ export default function Dashboard() {
 
   // Removed unused unreadCount variable
 
-  const handleCampaignUpdate = (campaign: any) => {
+  const handleCampaignUpdate = async (campaign: any) => {
     setCurrentCampaign(campaign);
-    // Reset leads when switching campaigns
-    setUploadedLeads([]);
     
-    // Add notification for campaign selection
-    addNotification({
-      title: 'Campaign Selected',
-      message: `Now working on "${campaign.name}"`,
-      type: 'info',
-      campaignId: campaign.id,
-      campaignName: campaign.name
-    });
+    // Fetch campaign details to get leads
+    if (campaign?.id) {
+      try {
+        const details = await api.getCampaignDetails(campaign.id);
+        setUploadedLeads(details.leads || []);
+        
+        // Add notification for campaign selection
+        addNotification({
+          title: 'Campaign Selected',
+          message: `Now working on "${campaign.name}" with ${details.leads.length} leads`,
+          type: 'info',
+          campaignId: campaign.id,
+          campaignName: campaign.name
+        });
+      } catch (error) {
+        console.error('Failed to fetch campaign details:', error);
+        setUploadedLeads([]);
+        
+        addNotification({
+          title: 'Error',
+          message: 'Failed to load campaign leads',
+          type: 'error',
+          campaignId: campaign.id,
+          campaignName: campaign.name
+        });
+      }
+    } else {
+      setUploadedLeads([]);
+    }
   };
 
   const handleVoiceSelect = (voiceId: string) => {

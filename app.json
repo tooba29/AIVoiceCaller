@@ -1,0 +1,55 @@
+{
+  "name": "AI Voice Caller",
+  "description": "A full-stack SaaS web application that enables users to create and manage AI-powered voice calling campaigns",
+  "repository": "https://github.com/your-username/AIVoiceCaller",
+  "logo": "https://cdn.jsdelivr.net/gh/heroku/node-js-getting-started/public/node.svg",
+  "keywords": ["node", "express", "typescript", "react", "ai", "voice", "twilio", "elevenlabs"],
+  "image": "heroku/nodejs",
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0"
+    }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "description": "Environment mode",
+      "value": "production"
+    },
+    "SESSION_SECRET": {
+      "description": "Secret key for session management",
+      "generator": "secret"
+    },
+    "TWILIO_ACCOUNT_SID": {
+      "description": "Twilio Account SID for voice calling functionality"
+    },
+    "TWILIO_AUTH_TOKEN": {
+      "description": "Twilio Auth Token for voice calling functionality"
+    },
+    "TWILIO_PHONE_NUMBER": {
+      "description": "Twilio phone number for outbound calls"
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for AI functionality"
+    },
+    "ELEVENLABS_API_KEY": {
+      "description": "ElevenLabs API key for voice synthesis"
+    },
+    "ELEVENLABS_AGENT_ID": {
+      "description": "ElevenLabs Agent ID for voice configuration"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "npm run db:push"
+  }
+} 

@@ -7,8 +7,9 @@ import fs from "fs";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import passport from "./auth.js";
-import authRoutes from "./auth-routes.js";
+import authRoutes from "./routes/auth.js";
 import { Pool } from "pg";
+import { setupWebSocketServer } from "./routes/calls.js";
 
 // Load environment variables from .env file
 const envPath = path.resolve(process.cwd(), '.env');
@@ -31,9 +32,13 @@ if (fs.existsSync(envPath)) {
   console.error('No .env file found at:', envPath);
 }
 
-// Set BASE_URL from Railway domain if not provided
-if (!process.env.BASE_URL && process.env.RAILWAY_PUBLIC_DOMAIN) {
-  process.env.BASE_URL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+// Set BASE_URL from Heroku domain if not provided
+if (!process.env.BASE_URL) {
+  if (process.env.HEROKU_APP_NAME) {
+    process.env.BASE_URL = `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`;
+  } else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    process.env.BASE_URL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  }
 }
 
 // Validate required environment variables
@@ -133,6 +138,9 @@ app.use('/api/auth', authRoutes);
 (async () => {
   const server = await registerRoutes(app);
 
+  // Setup WebSocket server for ElevenLabs integration
+  setupWebSocketServer(server);
+
   // Global error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -153,10 +161,10 @@ app.use('/api/auth', authRoutes);
     serveStatic(app);
   }
 
-  // Use Railway's PORT environment variable or fallback to 5000
+  // Use Heroku's PORT environment variable or fallback to 5000
   const port = parseInt(process.env.PORT || "5000", 10);
   
-  // Railway requires binding to 0.0.0.0, not 127.0.0.1
+  // Heroku requires binding to 0.0.0.0, not 127.0.0.1
   const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
   
   server.listen({

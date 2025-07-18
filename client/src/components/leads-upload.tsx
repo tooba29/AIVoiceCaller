@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Upload, FileSpreadsheet, Trash2 } from "lucide-react";
@@ -26,8 +27,9 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
       api.uploadCSV(file, campaignId.toString()),
     onSuccess: (data) => {
       toast({
-        title: t('leadsUpload.leadsUploaded'),
-        description: t('leadsUpload.leadsUploadedSuccess', { count: data.leadsCount }),
+        title: "Leads Uploaded",
+        description: `${data.leadsCount} leads uploaded successfully!`,
+        duration: 1000, // Auto-dismiss after 3 seconds
       });
       onLeadsUpload(data.leads || []);
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
@@ -44,19 +46,12 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
   // Delete leads mutation
   const deleteLeadsMutation = useMutation({
     mutationFn: (campaignId: number) => api.deleteLeads(campaignId),
-    onSuccess: (data) => {
-      toast({
-        title: t('leadsUpload.leadsDeleted'),
-        description: t('leadsUpload.leadsDeletedSuccess'),
-      });
-      onLeadsUpload([]); // Clear the leads from the parent component
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-    },
     onError: (error: any) => {
       toast({
-        title: t('leadsUpload.deleteFailed'),
-        description: error.message || t('leadsUpload.deleteFailedMessage'),
+        title: "Error",
+        description: error.message || "Failed to delete leads",
         variant: "destructive",
+        duration: 1000,
       });
     },
   });
@@ -120,31 +115,26 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
   };
 
   const handleDeleteLeads = () => {
-    if (!campaignId) {
+    if (!campaignId || typeof campaignId !== 'number') {
       toast({
-        title: t('leadsUpload.noCampaign'),
-        description: t('leadsUpload.createCampaignFirst'),
+        title: "Error",
+        description: "Campaign ID is required",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
 
-    if (uploadedLeads.length === 0) {
-      toast({
-        title: t('leadsUpload.noLeads'),
-        description: t('leadsUpload.noLeadsToDelete'),
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const confirmDelete = window.confirm(
-      t('leadsUpload.confirmDeleteLeads', { count: uploadedLeads.length })
-    );
-
-    if (confirmDelete) {
-      deleteLeadsMutation.mutate(campaignId);
-    }
+    deleteLeadsMutation.mutate(campaignId, {
+      onSuccess: () => {
+        onLeadsUpload([]);
+        toast({
+          title: "Leads Deleted",
+          description: "All leads have been deleted successfully",
+          duration: 1000,
+        });
+      },
+    });
   };
 
   return (
@@ -218,31 +208,41 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
         {/* Lead Preview */}
         {uploadedLeads.length > 0 && (
           <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <p className="text-sm font-medium text-slate-700">{t('leadsUpload.leadPreview')}</p>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2 min-w-fit">
                 <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                   {uploadedLeads.length} {t('leadsUpload.contacts')}
                 </Badge>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDeleteLeads}
-                  disabled={deleteLeadsMutation.isPending}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                >
-                  {deleteLeadsMutation.isPending ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
-                      {t('leadsUpload.deleting')}
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      {t('leadsUpload.deleteAllLeads')}
-                    </>
-                  )}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Delete All Leads
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete All Leads</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete all {uploadedLeads.length} uploaded leads? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleDeleteLeads}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                        disabled={deleteLeadsMutation.isPending}
+                      >
+                        {deleteLeadsMutation.isPending ? "Deleting..." : "Delete All"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
             <div className="space-y-2 max-h-40 overflow-y-auto">

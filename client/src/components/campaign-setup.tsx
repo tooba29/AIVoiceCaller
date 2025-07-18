@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Upload, Save, Bot, Trash2, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface CampaignSetupProps {
   campaign: any;
@@ -62,14 +63,9 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
     },
     enabled: !!campaign?.id && !!campaign?.name && typeof campaign?.id === 'number',
     staleTime: 0, // Always fetch fresh data
-    gcTime: 0, // Don't cache errors
-    retry: (failureCount, error) => {
-      // Don't retry if it's a "campaign not found" error for new campaigns
-      if (error instanceof Error && error.message.includes('Campaign not found')) {
-        return false;
-      }
-      return failureCount < 2; // Retry up to 2 times for other errors
-    },
+    gcTime: 0,
+    retry: 1, // Only retry once to prevent infinite loops
+    retryDelay: 1000 // Wait 1 second before retrying
   });
 
   // Clear stale error states when campaign changes
@@ -104,6 +100,16 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
       console.log(`[Campaign Setup] ✅ Knowledge base fetched:`, knowledgeBase);
       // Force hide any error messages when we have successful data
       setForceHideError(true);
+      
+      // Update campaign with knowledge base ID if we have files
+      if (knowledgeBase.knowledgeBase?.length > 0 && campaign?.id) {
+        const latestKnowledgeBase = knowledgeBase.knowledgeBase[0];
+        onCampaignUpdate({
+          ...campaign,
+          knowledgeBaseId: latestKnowledgeBase.id.toString()
+        });
+      }
+      
       // If we have successful data, clear any persistent error states
       if (knowledgeBaseError) {
         console.log(`[Campaign Setup] 🔄 Clearing stale error state after successful data fetch`);
@@ -161,10 +167,10 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
       setForceHideError(true);
       setRecentlyUploadedFile(data.knowledgeBase);
       
-              toast({
-          title: t('campaignSetup.pdfUploaded'),
-          description: `${data.knowledgeBase?.filename || 'File'} ${t('campaignSetup.uploadedSuccessfully')}`,
-        });
+      toast({
+        title: t('campaignSetup.pdfUploaded'),
+        description: `${data.knowledgeBase?.filename || 'File'} ${t('campaignSetup.uploadedSuccessfully')}`,
+      });
       
       // Clear cache and force immediate refetch
       const campaignKnowledgeBaseKey = [`/api/campaigns/${campaign?.id}/knowledge-base`];
@@ -175,14 +181,24 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
       queryClient.removeQueries({ queryKey: campaignKnowledgeBaseKey });
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       
-      // Step 2: Force immediate refetch
-      refetchKnowledgeBase().then((result) => {
-        console.log(`[Campaign Setup] ✅ Post-upload refetch result:`, result);
-        // Clear the temporary file once we have fresh data
-        setRecentlyUploadedFile(null);
-      }).catch((error) => {
-        console.error(`[Campaign Setup] ❌ Post-upload refetch failed:`, error);
-      });
+      // Step 2: Force immediate refetch with delay to ensure cache is cleared
+      setTimeout(() => {
+        refetchKnowledgeBase()
+          .then((result) => {
+            console.log(`[Campaign Setup] ✅ Post-upload refetch result:`, result);
+            // Clear the temporary file once we have fresh data
+            setRecentlyUploadedFile(null);
+          })
+          .catch((error) => {
+            console.error(`[Campaign Setup] ❌ Post-upload refetch failed:`, error);
+            // If refetch fails, keep the recently uploaded file visible
+            toast({
+              title: t('campaignSetup.refreshFailed'),
+              description: t('campaignSetup.refreshFailedMessage'),
+              variant: "destructive",
+            });
+          });
+      }, 1000);
       
       console.log(`[Campaign Setup] 🔄 Cleared cache and initiated fresh fetch for campaign ${campaign?.id}`);
     },
@@ -443,58 +459,73 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-1 bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs rounded-full font-medium">
-                      {t('common.uploaded')}
+                      ✓
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
-                      onClick={() => {
-                        if (campaign?.id) {
-                          const confirmDelete = window.confirm(
-                            t('campaignSetup.confirmDeleteFile')
-                          );
-                          if (confirmDelete) {
-                            console.log(`[Campaign Setup] 🗑️ Deleting file ${file.filename} (ID: ${file.id}) from campaign ${campaign.id}`);
-                            api.deleteKnowledgeBase(file.id, campaign.id)
-                              .then((result) => {
-                                console.log(`[Campaign Setup] ✅ File deleted successfully:`, result);
-                                
-                                // Immediately hide any error messages
-                                setForceHideError(true);
-                                
-                                toast({
-                                  title: t('campaignSetup.fileDeleted'),
-                                  description: `${file.filename} ${t('campaignSetup.fileDeletedSuccess')}`,
-                                });
-                                
-                                // Clear cache and refetch knowledge base
-                                const campaignKnowledgeBaseKey = [`/api/campaigns/${campaign?.id}/knowledge-base`];
-                                queryClient.removeQueries({ queryKey: campaignKnowledgeBaseKey });
-                                queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-                                
-                                // Force clean refetch
-                                setTimeout(() => {
-                                  queryClient.invalidateQueries({ queryKey: campaignKnowledgeBaseKey });
-                                  refetchKnowledgeBase();
-                                }, 200);
-                                
-                                console.log(`[Campaign Setup] 🔄 Invalidated queries after file deletion`);
-                              })
-                              .catch((error) => {
-                                console.error(`[Campaign Setup] ❌ File deletion failed:`, error);
-                                toast({
-                                  title: t('campaignSetup.fileDeleteFailed'),
-                                  description: error.message || t('campaignSetup.fileDeleteFailedMessage'),
-                                  variant: "destructive",
-                                });
-                              });
-                          }
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Knowledge Base File</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this file? This will remove it from the AI agent's knowledge base.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              if (campaign?.id) {
+                                console.log(`[Campaign Setup] 🗑️ Deleting file ${file.filename} (ID: ${file.id}) from campaign ${campaign.id}`);
+                                api.deleteKnowledgeBase(file.id, campaign.id)
+                                  .then((result) => {
+                                    console.log(`[Campaign Setup] ✅ File deleted successfully:`, result);
+                                    
+                                    // Immediately hide any error messages
+                                    setForceHideError(true);
+                                    
+                                    toast({
+                                      title: t('campaignSetup.fileDeleted'),
+                                      description: `${file.filename} ${t('campaignSetup.fileDeletedSuccess')}`,
+                                    });
+                                    
+                                    // Clear cache and refetch knowledge base
+                                    const campaignKnowledgeBaseKey = [`/api/campaigns/${campaign?.id}/knowledge-base`];
+                                    queryClient.removeQueries({ queryKey: campaignKnowledgeBaseKey });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+                                    
+                                    // Force clean refetch
+                                    setTimeout(() => {
+                                      queryClient.invalidateQueries({ queryKey: campaignKnowledgeBaseKey });
+                                      refetchKnowledgeBase();
+                                    }, 200);
+                                    
+                                    console.log(`[Campaign Setup] 🔄 Invalidated queries after file deletion`);
+                                  })
+                                  .catch((error) => {
+                                    console.error(`[Campaign Setup] ❌ File deletion failed:`, error);
+                                    toast({
+                                      title: t('campaignSetup.fileDeleteFailed'),
+                                      description: error.message || t('campaignSetup.fileDeleteFailedMessage'),
+                                      variant: "destructive",
+                                    });
+                                  });
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            Delete File
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}
