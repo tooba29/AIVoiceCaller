@@ -17,7 +17,7 @@ export default defineConfig({
   },
   root: path.resolve(__dirname, "client"),
   build: {
-    outDir: path.resolve(__dirname, "..", "dist", "public"),
+    outDir: path.resolve(__dirname, "dist", "public"),
     emptyOutDir: true,
     rollupOptions: {
       output: {
@@ -42,7 +42,6 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
-        changeOrigin: true,
       }
     },
     cors: true,

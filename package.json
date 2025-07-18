@@ -12,7 +12,7 @@
     "dev": "tsx watch server/index.ts",
     "build": "npm run build:client && npm run build:server",
     "build:verify": "echo '🔍 Starting build process...' && node --version && npm --version",
-    "build:client": "echo '🏗️ Building client...' && vite build --outDir dist/public",
+    "build:client": "echo '🏗️ Building client...' && vite build",
     "build:server": "echo '🏗️ Building server...' && tsc -p tsconfig.server.json",
     "build:check": "echo '✅ Checking build output...' && ls -la dist/ && ls -la dist/public/ && ls -la dist/server/",
     "start": "node dist/server/index.js",
