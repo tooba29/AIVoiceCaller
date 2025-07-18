@@ -258,10 +258,15 @@ export function registerCampaignRoutes(app: Express): void {
       console.log(`[Delete Campaign] Deleting campaign ${campaignId}`);
       const deleted = await storage.deleteCampaign(campaignId);
       
-      if (!deleted) {
-        console.log(`[Delete Campaign] Deletion failed`);
-        return res.status(404).json({ error: "Campaign not found" });
+      // Verify the campaign is actually gone, even if the delete method returned false
+      const verifyDeleted = await storage.getCampaign(campaignId);
+      
+      if (verifyDeleted) {
+        console.log(`[Delete Campaign] Deletion failed - campaign still exists`);
+        return res.status(500).json({ error: "Failed to delete campaign" });
       }
+      
+      console.log(`[Delete Campaign] Campaign deletion verified - campaign no longer exists`);
       
       console.log(`[Delete Campaign] Campaign ${campaignId} deleted successfully`);
       
