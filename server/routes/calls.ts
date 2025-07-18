@@ -15,24 +15,33 @@ interface AuthenticatedRequest extends Request {
 
 interface ElevenLabsMessage {
   type: string;
+  // Audio response from agent
   audio?: {
     chunk: string;
   };
   audio_event?: {
     audio_base_64: string;
+    event_id?: number;
   };
+  // Ping/Pong for keepalive
   ping_event?: {
     event_id: string;
+    ping_ms?: number;
   };
+  // Agent text responses
   agent_response_event?: {
     agent_response: string;
   };
+  // User speech-to-text
   user_transcription_event?: {
     user_transcript: string;
   };
+  // Conversation initiation response
   conversation_initiation_metadata?: {
     conversation_id?: string;
     agent_id?: string;
+    agent_output_audio_format?: string;
+    user_input_audio_format?: string;
     [key: string]: any;
   };
   conversation_initiation_metadata_event?: {
@@ -41,6 +50,19 @@ interface ElevenLabsMessage {
     user_input_audio_format?: string;
     [key: string]: any;
   };
+  // Interruption handling
+  interruption_event?: {
+    reason?: string;
+  };
+  // Internal tentative responses (may not always be present)
+  tentative_agent_response_internal_event?: {
+    tentative_agent_response: string;
+  };
+  // Voice Activity Detection
+  vad_score_event?: {
+    vad_score: number;
+  };
+  // Conversation ID fallbacks
   conversation_id?: string;
   metadata?: {
     conversation_id?: string;
@@ -260,8 +282,17 @@ const setupElevenLabsConnection = async (
     const newWs = new WebSocket(data.signed_url);
     elevenlabsWs = newWs;
 
+    // Set up connection timeout as safeguard
+    const connectionTimeout = setTimeout(() => {
+      if (newWs.readyState !== WebSocket.OPEN) {
+        console.error("[ElevenLabs] Connection timeout - closing WebSocket");
+        newWs.close();
+      }
+    }, 30000); // 30 second timeout
+
     newWs.on('open', () => {
-      console.log("[ElevenLabs] WebSocket connected, sending configuration");
+      clearTimeout(connectionTimeout);
+      console.log("[ElevenLabs] WebSocket connected successfully, sending configuration");
       
       const payload = {
         type: "conversation_initiation_client_data",
@@ -294,7 +325,6 @@ const setupElevenLabsConnection = async (
         const message = JSON.parse(data.toString()) as ElevenLabsMessage;
         
         console.log(`[ElevenLabs] 📥 Received message type: ${message.type}`);
-        //console.log(`[ElevenLabs] 📥 Full message:`, JSON.stringify(message, null, 2));
         
         switch (message.type) {
           case "conversation_initiation_metadata":
@@ -401,6 +431,7 @@ const setupElevenLabsConnection = async (
             break;
           
           case "interruption":
+            console.log(`[ElevenLabs] Interruption detected: ${message.interruption_event?.reason || 'unknown reason'}`);
             if (streamSid) {
               ws.send(JSON.stringify({ event: "clear", streamSid }));
             }
@@ -421,6 +452,18 @@ const setupElevenLabsConnection = async (
           
           case "user_transcript":
             console.log(`[ElevenLabs] User transcript: ${message.user_transcription_event?.user_transcript}`);
+            break;
+
+          case "internal_tentative_agent_response":
+            // Optional: Handle tentative responses (may be useful for debugging)
+            console.log(`[ElevenLabs] Tentative response: ${message.tentative_agent_response_internal_event?.tentative_agent_response}`);
+            break;
+
+          case "vad_score":
+            // Optional: Handle Voice Activity Detection scores
+            if (message.vad_score_event) {
+              console.log(`[ElevenLabs] VAD Score: ${message.vad_score_event.vad_score}`);
+            }
             break;
           
           case "conversation_ended":
@@ -448,10 +491,8 @@ const setupElevenLabsConnection = async (
                     // Update lead status
                     await storage.updateLead(callLog.leadId, { status: newLeadStatus });
                     
-                    // Update call log status if not already updated
-                    if (callLog.status !== newCallStatus) {
-                      await storage.updateCallLog(callLog.id, { status: newCallStatus });
-                    }
+                    // Update call log status
+                    await storage.updateCallLog(callLog.id, { status: newCallStatus });
                     
                     // Update campaign statistics
                     await updateCampaignStatistics(campaignId);
@@ -466,29 +507,14 @@ const setupElevenLabsConnection = async (
           default:
             console.log(`[ElevenLabs] Unhandled message type: ${message.type}`);
             
-            const messageAny = message as any;
+            // Check if conversation ID exists in unhandled message types
             let foundConversationId: string | null = null;
-            
-            if (messageAny.conversation_id) {
-              foundConversationId = messageAny.conversation_id;
-            } else if (messageAny.metadata?.conversation_id) {
-              foundConversationId = messageAny.metadata.conversation_id;
-            } else if (messageAny.data?.conversation_id) {
-              foundConversationId = messageAny.data.conversation_id;
-            } else {
-              const searchForConversationId = (obj: any, path = ''): string | null => {
-                for (const [key, value] of Object.entries(obj)) {
-                  const currentPath = path ? `${path}.${key}` : key;
-                  if (typeof value === 'string' && key.toLowerCase().includes('conversation') && key.toLowerCase().includes('id')) {
-                    return value;
-                  } else if (typeof value === 'object' && value !== null) {
-                    const result = searchForConversationId(value, currentPath);
-                    if (result) return result;
-                  }
-                }
-                return null;
-              };
-              foundConversationId = searchForConversationId(messageAny);
+            if (message.conversation_id) {
+              foundConversationId = message.conversation_id;
+            } else if (message.metadata?.conversation_id) {
+              foundConversationId = message.metadata.conversation_id;
+            } else if (message.data?.conversation_id) {
+              foundConversationId = message.data.conversation_id;
             }
             
             if (foundConversationId && campaignId && callSid) {
@@ -520,10 +546,21 @@ const setupElevenLabsConnection = async (
 
     newWs.on('error', error => {
       console.error("[ElevenLabs] WebSocket error:", error);
+      console.error("[ElevenLabs] Error details:", {
+        message: error.message,
+        code: (error as any).code,
+        type: (error as any).type,
+        target: (error as any).target
+      });
+      
+      // Close Twilio connection on ElevenLabs error
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     });
 
-    newWs.on('close', () => {
-      console.log("[ElevenLabs] WebSocket disconnected");
+    newWs.on('close', (code, reason) => {
+      console.log(`[ElevenLabs] WebSocket closed - Code: ${code}, Reason: ${reason?.toString() || 'No reason'}`);
       if (streamSid) {
         activeConnections.delete(streamSid);
       }
@@ -539,13 +576,13 @@ const setupElevenLabsConnection = async (
                 log.campaignId === campaignId && log.twilioCallSid === callSid
               );
               
-                             if (callLog && callLog.leadId) {
-                 // Get all leads for this campaign and find the specific lead
-                 const allLeads = await storage.getLeadsByCampaign(campaignId);
-                 const currentLead = allLeads.find(lead => lead.id === callLog.leadId);
-                 
-                 // Only update if lead is still in calling status (not already processed)
-                 if (currentLead && currentLead.status === 'calling') {
+              if (callLog && callLog.leadId) {
+                // Get all leads for this campaign and find the specific lead
+                const allLeads = await storage.getLeadsByCampaign(campaignId);
+                const currentLead = allLeads.find(lead => lead.id === callLog.leadId);
+                
+                // Only update if lead is still in calling status (not already processed)
+                if (currentLead && currentLead.status === 'calling') {
                   console.log(`[ElevenLabs] WebSocket closed, updating lead ${callLog.leadId} from calling status`);
                   
                   // Determine status based on call duration
@@ -566,6 +603,8 @@ const setupElevenLabsConnection = async (
         })();
       }
     });
+
+
 
   } catch (error) {
     console.error("[ElevenLabs] Setup error:", error);

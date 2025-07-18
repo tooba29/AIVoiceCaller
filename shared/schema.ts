@@ -1,66 +1,64 @@
 // shared/schema.ts
 
 import {
-  pgTable,
-  serial,
+  mysqlTable,
+  int,
   text,
   varchar,
   timestamp,
-  integer,
   boolean,
-  json,
-  uuid
-} from "drizzle-orm/pg-core";
+  json
+} from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
 
-export const campaigns = pgTable("campaigns", {
-  id: serial("id").primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id),
+export const campaigns = mysqlTable("campaigns", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id),
   name: text("name").notNull(),
   firstPrompt: text("first_prompt").notNull(),
   systemPersona: text("system_persona").notNull(),
   selectedVoiceId: text("selected_voice_id"),
   status: text("status").default("draft"),
-  totalLeads: integer("total_leads").default(0),
-  completedCalls: integer("completed_calls").default(0),
-  successfulCalls: integer("successful_calls").default(0),
-  failedCalls: integer("failed_calls").default(0),
+  totalLeads: int("total_leads").default(0),
+  completedCalls: int("completed_calls").default(0),
+  successfulCalls: int("successful_calls").default(0),
+  failedCalls: int("failed_calls").default(0),
   createdAt: timestamp("created_at").defaultNow()
 });
 
-export const leads = pgTable("leads", {
-  id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").notNull().references(() => campaigns.id),
+export const leads = mysqlTable("leads", {
+  id: int("id").primaryKey().autoincrement(),
+  campaignId: int("campaign_id").notNull().references(() => campaigns.id),
   firstName: text("first_name"),
   lastName: text("last_name"),
   contactNo: text("contact_no").notNull(),
   status: text("status").default("pending"),
-  callDuration: integer("call_duration"),
+  callDuration: int("call_duration"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
-export const callLogs = pgTable("call_logs", {
-  id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").notNull().references(() => campaigns.id),
-  leadId: integer("lead_id").references(() => leads.id),
+export const callLogs = mysqlTable("call_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  campaignId: int("campaign_id").notNull().references(() => campaigns.id),
+  leadId: int("lead_id").references(() => leads.id),
   phoneNumber: text("phone_number"),
   status: text("status"),
-  duration: integer("duration"),
+  duration: int("duration"),
   twilioCallSid: text("twilio_call_sid"),
   elevenLabsConversationId: text("elevenlabs_conversation_id"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
-export const voices = pgTable("voices", {
+export const voices = mysqlTable("voices", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -70,9 +68,9 @@ export const voices = pgTable("voices", {
   category: text("category") // premade | cloned | generated
 });
 
-export const knowledgeBaseFiles = pgTable("knowledge_base_files", {
-  id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").notNull().references(() => campaigns.id),
+export const knowledgeBaseFiles = mysqlTable("knowledge_base_files", {
+  id: int("id").primaryKey().autoincrement(),
+  campaignId: int("campaign_id").notNull().references(() => campaigns.id),
   filename: text("filename").notNull(),
   fileUrl: text("file_url").notNull(),
   elevenlabsDocId: text("elevenlabs_doc_id"),

@@ -4,6 +4,7 @@ import { storage } from '../storage.js';
 import { hashPassword, validatePassword, validateEmail, requireAuth, requireNoAuth } from '../auth.js';
 import { insertUserSchema } from '../../shared/schema.js';
 import { z } from 'zod';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -52,6 +53,7 @@ router.post('/register', requireNoAuth, async (req, res) => {
     // Hash password and create user
     const passwordHash = await hashPassword(password);
     const newUser = await storage.createUser({
+      id: crypto.randomUUID(),
       email,
       passwordHash
     });

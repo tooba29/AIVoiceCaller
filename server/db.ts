@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2";
 import * as schema from "../shared/schema.js";
 import "dotenv/config";
 
@@ -11,25 +11,21 @@ if (!process.env.DATABASE_URL) {
 // Create connection pool
 const connectionString = process.env.DATABASE_URL;
 
-// Create the raw postgres client for session store
-export const pgClient = postgres(connectionString, {
-  max: 20, // Maximum number of connections
-  idle_timeout: 20, // Close idle connections after 20 seconds
-  connect_timeout: 10, // Connection timeout in seconds
-});
+// Create the MySQL connection pool
+export const mysqlClient = mysql.createPool(connectionString);
 
 // Create database instance with schema
-export const db = drizzle(pgClient, { schema });
+export const db = drizzle(mysqlClient, { schema, mode: "default" });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('Closing database connections...');
-  await pgClient.end();
+  await mysqlClient.end();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('Closing database connections...');
-  await pgClient.end();
+  await mysqlClient.end();
   process.exit(0);
 }); 

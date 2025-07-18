@@ -5,10 +5,9 @@ import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
+import MySQLStoreFactory from "express-mysql-session";
 import passport from "./auth.js";
 import authRoutes from "./routes/auth.js";
-import { Pool } from "pg";
 import { setupWebSocketServer } from "./routes/calls.js";
 
 // Load environment variables from .env file
@@ -69,22 +68,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Session configuration
-const PgSession = connectPgSimple(session);
+const MySQLStore = MySQLStoreFactory(session as any);
 
-// Create a proper Pool instance for session store
-const sessionPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 20000,
-  connectionTimeoutMillis: 10000,
+// Create a MySQL session store
+const sessionStore = new MySQLStore({
+  host: process.env.DATABASE_HOST || 'gator3166.hostgator.com',
+  port: parseInt(process.env.DATABASE_PORT || '3306'),
+  user: process.env.DATABASE_USER || 'mowaisac_scroot',
+  password: process.env.DATABASE_PASSWORD || '^};t2v1Y+=~v',
+  database: process.env.DATABASE_NAME || 'mowaisac_salescalling',
+  createDatabaseTable: true,
+  schema: {
+    tableName: 'user_sessions',
+    columnNames: {
+      session_id: 'session_id',
+      expires: 'expires',
+      data: 'data'
+    }
+  }
 });
 
 app.use(session({
-  store: new PgSession({
-    pool: sessionPool,
-    tableName: 'user_sessions',
-    createTableIfMissing: true,
-  }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,

@@ -7,7 +7,7 @@ if (!process.env.DATABASE_URL) {
 export default defineConfig({
   schema: "./shared/schema.ts",
   out: "./drizzle", // directory for generated SQL
-  dialect: "postgresql", // PostgreSQL dialect
+  dialect: "mysql", // MySQL dialect
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
