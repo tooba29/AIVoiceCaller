@@ -3,21 +3,43 @@
   "description": "A full-stack SaaS web application that enables users to create and manage AI-powered voice calling campaigns",
   "repository": "https://github.com/your-username/AIVoiceCaller",
   "logo": "https://cdn.jsdelivr.net/gh/heroku/node-js-getting-started/public/node.svg",
-  "keywords": ["node", "express", "typescript", "react", "ai", "voice", "twilio", "elevenlabs"],
+  "keywords": ["node", "express", "typescript", "react", "ai", "voice", "twilio", "elevenlabs", "mysql"],
   "image": "heroku/nodejs",
-  "addons": [
-    {
-      "plan": "heroku-postgresql:essential-0"
-    }
-  ],
   "env": {
     "NODE_ENV": {
       "description": "Environment mode",
       "value": "production"
     },
+    "PORT": {
+      "description": "Port for the application",
+      "value": "8000"
+    },
+    "BASE_URL": {
+      "description": "Base URL for the application (will be auto-set by Heroku)",
+      "required": false
+    },
     "SESSION_SECRET": {
       "description": "Secret key for session management",
       "generator": "secret"
+    },
+    "DATABASE_URL": {
+      "description": "MySQL database connection URL (format: mysql://user:password@host:port/database)"
+    },
+    "DATABASE_HOST": {
+      "description": "MySQL database host"
+    },
+    "DATABASE_PORT": {
+      "description": "MySQL database port",
+      "value": "3306"
+    },
+    "DATABASE_USER": {
+      "description": "MySQL database username"
+    },
+    "DATABASE_PASSWORD": {
+      "description": "MySQL database password"
+    },
+    "DATABASE_NAME": {
+      "description": "MySQL database name"
     },
     "TWILIO_ACCOUNT_SID": {
       "description": "Twilio Account SID for voice calling functionality"
@@ -27,9 +49,6 @@
     },
     "TWILIO_PHONE_NUMBER": {
       "description": "Twilio phone number for outbound calls"
-    },
-    "OPENAI_API_KEY": {
-      "description": "OpenAI API key for AI functionality"
     },
     "ELEVENLABS_API_KEY": {
       "description": "ElevenLabs API key for voice synthesis"
