@@ -8,6 +8,13 @@
       "when": 1752839475189,
       "tag": "0000_early_shinobi_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1752843355595,
+      "tag": "0001_harsh_solo",
+      "breakpoints": true
     }
   ]
 }

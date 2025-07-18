@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0",
+    "node": "18.x",
     "npm": ">=8.0.0"
   },
   "scripts": {
@@ -19,7 +19,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx server/seed.ts"
+    "db:seed": "tsx server/seed.ts",
+    "heroku-postbuild": "npm run build"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.1.0",
