@@ -4,15 +4,17 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": "18.x",
+    "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
   "scripts": {
-    "postinstall": "npm run build",
+    "heroku-postbuild": "npm run build:verify && npm run build:client && npm run build:server && npm run build:check",
     "dev": "tsx watch server/index.ts",
     "build": "npm run build:client && npm run build:server",
-    "build:client": "vite build --outDir dist/public",
-    "build:server": "tsc -p tsconfig.server.json",
+    "build:verify": "echo '🔍 Starting build process...' && node --version && npm --version",
+    "build:client": "echo '🏗️ Building client...' && vite build --outDir dist/public",
+    "build:server": "echo '🏗️ Building server...' && tsc -p tsconfig.server.json",
+    "build:check": "echo '✅ Checking build output...' && ls -la dist/ && ls -la dist/public/ && ls -la dist/server/",
     "start": "node dist/server/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
@@ -104,8 +106,6 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
-    "@replit/vite-plugin-cartographer": "^0.2.7",
-    "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.3",
     "@types/express-mysql-session": "^3.0.6",
