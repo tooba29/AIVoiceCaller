@@ -223,6 +223,39 @@ export function registerCampaignRoutes(app: Express): void {
       }
 
       console.log(`[Delete Campaign] Proceeding with local deletion...`);
+      
+      // First, delete all call logs for this campaign
+      console.log(`[Delete Campaign] Deleting call logs for campaign ${campaignId}`);
+      const callLogs = await storage.getCallLogsByCampaign(campaignId);
+      console.log(`[Delete Campaign] Found ${callLogs.length} call logs to delete`);
+      
+      for (const callLog of callLogs) {
+        try {
+          await storage.deleteCallLog(callLog.id);
+        } catch (callLogError) {
+          console.error(`[Delete Campaign] Failed to delete call log ${callLog.id}:`, callLogError);
+        }
+      }
+      
+      // Then, delete all leads for this campaign
+      console.log(`[Delete Campaign] Deleting leads for campaign ${campaignId}`);
+      const leads = await storage.getLeadsByCampaign(campaignId);
+      console.log(`[Delete Campaign] Found ${leads.length} leads to delete`);
+      
+      for (const lead of leads) {
+        try {
+          await storage.deleteLead(lead.id);
+        } catch (leadError) {
+          console.error(`[Delete Campaign] Failed to delete lead ${lead.id}:`, leadError);
+        }
+      }
+      
+      // Delete knowledge base files for this campaign
+      console.log(`[Delete Campaign] Deleting knowledge base files for campaign ${campaignId}`);
+      await storage.deleteKnowledgeBaseByCampaign(campaignId);
+      
+      // Finally, delete the campaign itself
+      console.log(`[Delete Campaign] Deleting campaign ${campaignId}`);
       const deleted = await storage.deleteCampaign(campaignId);
       
       if (!deleted) {
