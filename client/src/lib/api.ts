@@ -397,6 +397,48 @@ export const api = {
     return url;
   },
 
+  // Get call volume chart data
+  getCallVolumeData: async (timeRange: string = '7d') => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/analytics/call-volume?timeRange=${timeRange}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch call volume data');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to fetch call volume data');
+    }
+  },
+
+  // Get success rate trend data
+  getSuccessRateData: async (timeRange: string = '7d') => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/analytics/success-rate?timeRange=${timeRange}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch success rate data');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to fetch success rate data');
+    }
+  },
+
   deleteKnowledgeBase: async (id: number, campaignId: number) => {
     try {
       const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/knowledge-base/${id}`, {
@@ -475,5 +517,27 @@ export const api = {
       console.error('Failed to save dashboard settings:', error);
       return false;
     }
+  },
+
+  // Resume a paused campaign
+  resumeCampaign: async (campaignId: number) => {
+    const response = await fetch(`${BASE_URL}/api/resume-campaign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ campaignId }),
+    });
+    return handleResponse(response);
+  },
+
+  // Get campaign pause details
+  getCampaignPauseDetails: async (campaignId: number) => {
+    const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/pause-details`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse(response);
   },
 };

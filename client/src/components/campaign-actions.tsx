@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Rocket, Phone, Play, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
@@ -21,6 +21,7 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
   const [testCallStatus, setTestCallStatus] = useState<"idle" | "calling" | "completed" | "failed">("idle");
   
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Test call mutation
   const testCallMutation = useMutation({
@@ -53,6 +54,9 @@ export default function CampaignActions({ campaign, selectedVoiceId, uploadedLea
         title: t('campaignActions.campaignStarted'),
         description: data.message || t('campaignActions.campaignStartedMessage'),
       });
+      
+      // Force immediate UI update by invalidating campaigns query
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
     onError: (error: any) => {
       toast({

@@ -143,11 +143,13 @@ export function registerUploadRoutes(app: Express): void {
 
       if (elevenLabsApiKey) {
         try {
-          // Delete existing files from ElevenLabs knowledge base
+                      // Force delete existing files from ElevenLabs knowledge base 
+            // Using force=true automatically removes documents from all dependent agents
           for (const file of existingFiles) {
             if (file.elevenlabsDocId) {
               try {
-                const deleteResponse = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${file.elevenlabsDocId}`, {
+                console.log(`[Upload PDF] 🔥 Force deleting existing ElevenLabs document: ${file.elevenlabsDocId} (${file.filename})`);
+                const deleteResponse = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${file.elevenlabsDocId}?force=true`, {
                   method: 'DELETE',
                   headers: {
                     'xi-api-key': elevenLabsApiKey,
@@ -155,12 +157,13 @@ export function registerUploadRoutes(app: Express): void {
                 });
 
                 if (deleteResponse.ok || deleteResponse.status === 404) {
-                  console.log(`Successfully deleted knowledge base document: ${file.elevenlabsDocId}`);
+                  console.log(`[Upload PDF] ✅ Successfully force deleted existing document: ${file.filename}`);
                 } else {
-                  console.error('Failed to delete specific file from ElevenLabs:', await deleteResponse.text());
+                  const errorText = await deleteResponse.text();
+                  console.error(`[Upload PDF] ❌ Failed to force delete existing file from ElevenLabs:`, errorText);
                 }
               } catch (deleteError) {
-                console.error('Error deleting existing knowledge base file:', deleteError);
+                console.error(`[Upload PDF] ❌ Error deleting existing knowledge base file:`, deleteError);
               }
             }
           }

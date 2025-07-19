@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart3, TrendingUp, Clock, Phone, Users, Target, Calendar, Download, Play } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { api } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 
@@ -17,7 +18,58 @@ export default function Analytics() {
     queryFn: () => api.getCampaigns(),
   });
 
+  // Fetch chart data
+  const { data: callVolumeData, isLoading: callVolumeLoading } = useQuery({
+    queryKey: ["/api/analytics/call-volume", timeRange],
+    queryFn: () => api.getCallVolumeData(timeRange),
+  });
+
+  const { data: successRateData, isLoading: successRateLoading } = useQuery({
+    queryKey: ["/api/analytics/success-rate", timeRange],
+    queryFn: () => api.getSuccessRateData(timeRange),
+  });
+
   const campaigns = campaignsData?.campaigns || [];
+
+  // Custom tooltip components
+  const CallVolumeTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-medium text-gray-900">{label}</p>
+          <p className="text-blue-600">
+            <span className="font-medium">Total Calls: {data.calls}</span>
+          </p>
+          {data.successful > 0 && (
+            <p className="text-green-600 text-sm">✓ Successful: {data.successful}</p>
+          )}
+          {data.failed > 0 && (
+            <p className="text-red-600 text-sm">✗ Failed: {data.failed}</p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const SuccessRateTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-medium text-gray-900">{label}</p>
+          <p className="text-green-600">
+            <span className="font-medium">Success Rate: {data.successRate}%</span>
+          </p>
+          <p className="text-sm text-gray-600">
+            {data.successful} successful out of {data.total} total calls
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   // Calculate analytics data
   const totalCampaigns = campaigns.length;
@@ -142,12 +194,39 @@ export default function Analytics() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center bg-muted/20 rounded-xl">
-                    <div className="text-center">
-                      <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground">{t('analytics.callVolumeChart')}</p>
-                      <p className="text-sm text-muted-foreground/70">{t('analytics.chartVisualization')}</p>
-                    </div>
+                  <div className="h-64">
+                    {callVolumeLoading ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : callVolumeData?.data?.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={callVolumeData.data}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis 
+                            dataKey="period" 
+                            stroke="#64748b"
+                            fontSize={12}
+                          />
+                          <YAxis stroke="#64748b" fontSize={12} />
+                          <Tooltip content={<CallVolumeTooltip />} />
+                          <Legend 
+                            wrapperStyle={{ paddingTop: '20px' }}
+                            iconType="rect"
+                          />
+                          <Bar dataKey="successful" stackId="a" fill="#10b981" name="Successful Calls" />
+                          <Bar dataKey="failed" stackId="a" fill="#ef4444" name="Failed Calls" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-muted/20 rounded-xl">
+                        <div className="text-center">
+                          <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-muted-foreground">No call data available</p>
+                          <p className="text-sm text-muted-foreground/70">Start some campaigns to see call volume data</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -163,12 +242,46 @@ export default function Analytics() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center bg-muted/20 rounded-xl">
-                    <div className="text-center">
-                      <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground">{t('analytics.successRateTrendChart')}</p>
-                      <p className="text-sm text-muted-foreground/70">{t('analytics.trendVisualization')}</p>
-                    </div>
+                  <div className="h-64">
+                    {successRateLoading ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                      </div>
+                    ) : successRateData?.data?.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={successRateData.data}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis 
+                            dataKey="period" 
+                            stroke="#64748b"
+                            fontSize={12}
+                          />
+                          <YAxis 
+                            stroke="#64748b" 
+                            fontSize={12}
+                            domain={[0, 100]}
+                            tickFormatter={(value) => `${value}%`}
+                          />
+                          <Tooltip content={<SuccessRateTooltip />} />
+                          <Line 
+                            type="monotone" 
+                            dataKey="successRate" 
+                            stroke="#10b981" 
+                            strokeWidth={3}
+                            dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-muted/20 rounded-xl">
+                        <div className="text-center">
+                          <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-muted-foreground">No success rate data available</p>
+                          <p className="text-sm text-muted-foreground/70">Complete some calls to see success rate trends</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

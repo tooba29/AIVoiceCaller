@@ -32,6 +32,9 @@ export const campaigns = mysqlTable("campaigns", {
   completedCalls: int("completed_calls").default(0),
   successfulCalls: int("successful_calls").default(0),
   failedCalls: int("failed_calls").default(0),
+  pausedAt: text("paused_at"),
+  resumedAt: text("resumed_at"),
+  lastProcessedLeadId: int("last_processed_lead_id"),
   createdAt: timestamp("created_at").defaultNow()
 });
 

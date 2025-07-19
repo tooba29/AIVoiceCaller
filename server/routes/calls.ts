@@ -177,6 +177,8 @@ async function updateAgentKnowledgeBase(elevenLabsApiKey: string, campaignId: nu
   }
 }
 
+// 🎯 CRITICAL: This function ONLY runs when someone actually picks up the phone!
+// The mere fact this function executes means a real conversation is happening
 const setupElevenLabsConnection = async (
   lead: Lead,
   ws: WebSocket,
@@ -335,7 +337,7 @@ const setupElevenLabsConnection = async (
             
             if (message.conversation_initiation_metadata?.conversation_id) {
               conversationId = message.conversation_initiation_metadata.conversation_id;
-              console.log(`[ElevenLabs] ✅ Found Conversation ID in standard location: ${conversationId}`);
+              console.log(`[ElevenLabs] 🎯 CONVERSATION STARTED! ID: ${conversationId} - This proves someone picked up and is talking`);
             }
             else if ((message as any).conversation_initiation_metadata_event?.conversation_id) {
               conversationId = (message as any).conversation_initiation_metadata_event.conversation_id;
@@ -479,14 +481,12 @@ const setupElevenLabsConnection = async (
                   );
                   
                   if (callLog && callLog.leadId) {
-                    // Determine if call was successful based on duration
-                    const callDuration = callLog.duration || 0;
-                    const isSuccessful = callDuration > 3; // Consider calls > 3 seconds as successful
+                    // If we're here in the conversation_ended event, it means a real conversation happened
+                    // (WebSocket was established, ElevenLabs connected, and conversation ID was generated)
+                    const newLeadStatus = 'completed';
+                    const newCallStatus = 'completed';
                     
-                    const newLeadStatus = isSuccessful ? 'completed' : 'failed';
-                    const newCallStatus = isSuccessful ? 'completed' : 'failed';
-                    
-                    console.log(`[ElevenLabs] Updating lead ${callLog.leadId} status to: ${newLeadStatus} (duration: ${callDuration}s)`);
+                    console.log(`[ElevenLabs] ✅ Conversation ended properly - real interaction occurred - marking as completed`);
                     
                     // Update lead status
                     await storage.updateLead(callLog.leadId, { status: newLeadStatus });
@@ -583,12 +583,13 @@ const setupElevenLabsConnection = async (
                 
                 // Only update if lead is still in calling status (not already processed)
                 if (currentLead && currentLead.status === 'calling') {
-                  console.log(`[ElevenLabs] WebSocket closed, updating lead ${callLog.leadId} from calling status`);
+                  console.log(`[ElevenLabs] WebSocket closed, checking if conversation occurred`);
                   
-                  // Determine status based on call duration
-                  const callDuration = callLog.duration || 0;
-                  const isSuccessful = callDuration > 3;
-                  const newLeadStatus = isSuccessful ? 'completed' : 'failed';
+                  // Check if conversation ID was stored (means real conversation happened)
+                  const hasConversationId = !!callLog.elevenLabsConversationId;
+                  const newLeadStatus = hasConversationId ? 'completed' : 'failed';
+                  
+                  console.log(`[ElevenLabs] Lead ${callLog.leadId}: ${hasConversationId ? '✅ Had conversation' : '❌ No conversation'} - marking as ${newLeadStatus}`);
                   
                   await storage.updateLead(callLog.leadId, { status: newLeadStatus });
                   
@@ -737,11 +738,14 @@ export function registerCallRoutes(app: Express): void {
         totalLeads: leads.length,
         completedCalls: completedLeads.length + failedLeads.length,
         successfulCalls: completedLeads.length,
-        failedCalls: failedLeads.length
+        failedCalls: failedLeads.length,
+        resumedAt: new Date().toISOString()
       });
 
       // Start processing calls asynchronously
       processcamp(campaignId);
+
+      console.log(`🚀 [Campaign Start] Campaign ${campaignId} started with status "active" - ${leads.length} leads`);
 
       res.json({ 
         success: true, 
@@ -761,17 +765,67 @@ export function registerCallRoutes(app: Express): void {
     }
   });
 
-  // Twilio Status Callback - Enhanced to update lead statuses and campaign stats
+  // Resume Campaign
+  app.post("/api/resume-campaign", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { campaignId } = req.body;
+      if (!campaignId) {
+        return res.status(400).json({ error: "Campaign ID is required" });
+      }
+
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      if (campaign.status !== 'paused') {
+        return res.status(400).json({ error: "Campaign is not paused" });
+      }
+
+      const leads = await storage.getLeadsByCampaign(campaignId);
+      const pendingLeads = leads.filter(l => l.status === 'pending');
+      
+      if (pendingLeads.length === 0) {
+        return res.status(400).json({ error: "No pending leads to resume" });
+      }
+
+      // Update campaign status and resume timestamp
+      await storage.updateCampaign(campaignId, { 
+        status: "active",
+        resumedAt: new Date().toISOString()
+      });
+
+      // Resume processing calls asynchronously
+      processcamp(campaignId);
+
+      res.json({ 
+        success: true, 
+        message: `Campaign resumed with ${pendingLeads.length} pending leads`,
+        campaign: { 
+          ...campaign, 
+          status: "active"
+        }
+      });
+    } catch (error) {
+      console.error('Campaign resume error:', error);
+      res.status(500).json({ error: "Failed to resume campaign" });
+    }
+  });
+
+  // Twilio Status Callback - Uses conversation ID to determine real success
+  // ✅ LOGIC: If ElevenLabs conversation ID exists = someone picked up = success
+  // ❌ LOGIC: If no conversation ID = no pickup (TwiML never called) = failed
   app.post("/api/twilio/status", async (req: Request, res: Response) => {
     try {
       const { CallSid, CallStatus, CallDuration, CallFrom, CallTo } = req.body;
       
-      console.log('Twilio status callback:', { 
+      console.log('🔄 [Twilio Status Callback]:', { 
         CallSid, 
         CallStatus, 
-        CallDuration, 
+        CallDuration: `${CallDuration}s`, 
         CallFrom, 
-        CallTo 
+        CallTo,
+        timestamp: new Date().toISOString()
       });
       
       if (CallSid) {
@@ -785,18 +839,23 @@ export function registerCallRoutes(app: Express): void {
         const finalStatuses = ['completed', 'failed', 'busy', 'no-answer'];
         if (updatedCallLog && finalStatuses.includes(CallStatus) && updatedCallLog.leadId && updatedCallLog.campaignId) {
           
-          // Determine lead status based on call outcome
+          // Determine lead status based on whether someone actually picked up and had a conversation
           let newLeadStatus: string;
-          if (CallStatus === 'completed') {
-            // For completed calls, check duration to determine success
-            const duration = CallDuration ? parseInt(CallDuration) : 0;
-            newLeadStatus = duration > 3 ? 'completed' : 'failed';
+          
+          // The presence of an ElevenLabs conversation ID means someone answered and conversation started
+          const hasConversationId = !!updatedCallLog.elevenLabsConversationId;
+          
+          if (hasConversationId) {
+            // Real conversation happened - someone picked up and WebSocket/ElevenLabs connected
+            newLeadStatus = 'completed';
+            console.log(`[Twilio] ✅ Call had conversation (ID: ${updatedCallLog.elevenLabsConversationId}) - marking as completed`);
           } else {
-            // For other final statuses, mark as failed
+            // No conversation ID = no pickup or immediate hangup (TwiML never called)
             newLeadStatus = 'failed';
+            console.log(`[Twilio] ❌ No conversation ID found - call was not picked up - marking as failed`);
           }
           
-          console.log(`[Twilio] Updating lead ${updatedCallLog.leadId} status to: ${newLeadStatus} (call status: ${CallStatus}, duration: ${CallDuration}s)`);
+          console.log(`[Twilio] Updating lead ${updatedCallLog.leadId} status to: ${newLeadStatus} (conversation ID: ${hasConversationId ? 'EXISTS' : 'MISSING'})`);
           
           // Update lead status
           await storage.updateLead(updatedCallLog.leadId, { status: newLeadStatus });
@@ -814,10 +873,11 @@ export function registerCallRoutes(app: Express): void {
     }
   });
 
-  // TwiML endpoint - restored original functionality
+  // TwiML endpoint - ONLY called when someone actually picks up the phone
+  // If no pickup, Twilio never calls this endpoint = no WebSocket = no ElevenLabs = no conversation ID
   app.all("/outbound-call-twiml", (req, res) => {
     try {
-      console.log("[TwiML] Incoming request:", {
+      console.log("🎯 [TwiML] CALL PICKED UP - Someone answered! Incoming request:", {
         method: req.method,
         url: req.url,
         query: req.query,
@@ -1031,7 +1091,7 @@ async function updateCampaignStatistics(campaignId: number) {
       log.status === 'failed' || log.status === 'busy' || log.status === 'no-answer'
     ).length;
     const successfulCalls = allCallLogs.filter(log => 
-      log.status === 'completed' && (log.duration || 0) > 3
+      log.status === 'completed' && !!log.elevenLabsConversationId
     ).length;
     
     await storage.updateCampaign(campaignId, {
@@ -1104,8 +1164,33 @@ async function processcamp(campaignId: number) {
     // Initialize Twilio client
     const twilioClient: Twilio = twilio(twilioAccountSid, twilioAuthToken);
 
-    // Process each lead
-    for (const lead of pendingLeads) {
+    // Process each lead with efficient status checking
+    for (let i = 0; i < pendingLeads.length; i++) {
+      const lead = pendingLeads[i];
+      
+      // Check campaign status every 5 leads or at the beginning to avoid excessive DB calls
+      if (i % 5 === 0 || i === 0) {
+        const currentCampaign = await storage.getCampaign(campaignId);
+        if (!currentCampaign) {
+          console.log(`[Campaign ${campaignId}] Campaign not found, stopping processing`);
+          break;
+        }
+        
+        if (currentCampaign.status === 'paused') {
+          console.log(`[Campaign ${campaignId}] Campaign paused, stopping processing at lead ${lead.id}`);
+          await storage.updateCampaign(campaignId, { 
+            pausedAt: new Date().toISOString(),
+            lastProcessedLeadId: lead.id
+          });
+          break;
+        }
+        
+        if (currentCampaign.status !== 'active') {
+          console.log(`[Campaign ${campaignId}] Campaign status is ${currentCampaign.status}, stopping processing`);
+          break;
+        }
+      }
+
       let callLog: any = null;
       try {
         console.log(`[Campaign ${campaignId}] Processing lead ${lead.id} (${lead.firstName} - ${lead.contactNo})`);

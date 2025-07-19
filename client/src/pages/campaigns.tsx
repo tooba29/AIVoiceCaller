@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,34 +11,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Play, Pause, Trash2, Eye, Plus, Phone, Edit } from "lucide-react";
+import { Play, Pause, Trash2, Eye, Plus, Phone, Edit, Info } from "lucide-react";
 import { useLocation } from "wouter";
 import { api, type Campaign } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
-
-// Utility functions
-const getStatusBadgeClasses = (status: string) => {
-  switch (status) {
-    case "active":
-      return "border-green-200 bg-green-50 text-green-700";
-    case "paused":
-      return "border-yellow-200 bg-yellow-50 text-yellow-700";
-    case "completed":
-      return "border-blue-200 bg-blue-50 text-blue-700";
-    case "draft":
-      return "border-gray-200 bg-gray-50 text-gray-700";
-    default:
-      return "border-gray-200 bg-gray-50 text-gray-700";
-  }
-};
-
-const formatDate = (dateString: string) => {
-  if (!dateString) return "N/A";
-  const date = new Date(dateString);
-  return date.toLocaleDateString();
-};
+import CampaignPauseDetails from "@/components/campaign-pause-details";
+import { useCampaignMutations } from "@/hooks/use-campaign-mutations";
+import { getStatusBadgeClasses, formatDate, getStatusColor, validateCSVFile, getProgressPercentage } from "@/lib/campaign-utils";
 
 export default function Campaigns() {
   const { t } = useTranslation();
@@ -46,8 +27,9 @@ export default function Campaigns() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
+  const [showPauseDetails, setShowPauseDetails] = useState(false);
+  const [pauseDetailsCampaign, setPauseDetailsCampaign] = useState<Campaign | null>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
@@ -58,85 +40,45 @@ export default function Campaigns() {
     refetchInterval: 5000,
   });
 
-  // Update campaign mutation
-  const updateCampaignMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: any }) =>
-      api.updateCampaign(id, updates),
-    onSuccess: () => {
-      toast({
-        title: t('campaigns.campaignUpdated'),
-        description: t('campaigns.campaignUpdateSuccess'),
-      });
-      setEditingCampaign(null);
-      setShowCreateDialog(false); // Close the create/edit dialog
-      setNewCampaignName(""); // Clear the input field
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('campaigns.updateFailed'),
-        description: error.message || t('campaigns.failedToUpdateCampaign'),
-        variant: "destructive",
-      });
-    },
-  });
+  // Use centralized mutations with custom callbacks
+  const {
+    updateCampaign: baseUpdateCampaignMutation,
+    uploadCSV: csvUploadMutation,
+    updateCampaignStatus: updateStatusMutation,
+    deleteCampaign: baseDeleteCampaignMutation,
+    resumeCampaign: resumeCampaignMutation,
+    createMutation
+  } = useCampaignMutations();
 
-  // CSV upload mutation
-  const csvUploadMutation = useMutation({
-    mutationFn: (data: { file: File; campaignId: string }) =>
-      api.uploadCSV(data.file, data.campaignId),
-    onSuccess: () => {
-      toast({
-        title: t('leadsUpload.leadsUploaded'),
-        description: "CSV file has been uploaded successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('leadsUpload.uploadFailed'),
-        description: error.message || t('leadsUpload.uploadFailedMessage'),
-        variant: "destructive",
-      });
-    },
-  });
+  // Custom mutations with specific UI behaviors
+  const updateCampaignMutation = createMutation(
+    ({ id, updates }: { id: number; updates: any }) => api.updateCampaign(id, updates),
+    {
+      successTitle: t('campaigns.campaignUpdated'),
+      successMessage: t('campaigns.campaignUpdateSuccess'),
+      errorTitle: t('campaigns.updateFailed'),
+      errorMessage: t('campaigns.failedToUpdateCampaign'),
+      onSuccess: () => {
+        setEditingCampaign(null);
+        setShowCreateDialog(false);
+        setNewCampaignName("");
+      }
+    }
+  );
 
-  // Campaign status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      api.updateCampaign(id, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('campaigns.updateFailed'),
-        description: error.message || t('campaigns.failedToUpdateCampaign'),
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Delete campaign mutation
-  const deleteCampaignMutation = useMutation({
-    mutationFn: (id: number) => api.deleteCampaign(id),
-    onSuccess: () => {
-      toast({
-        title: t('campaigns.campaignDeleted'),
-        description: t('campaigns.campaignDeletedSuccess'),
-      });
-      setShowDeleteDialog(false);
-      setCampaignToDelete(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('campaigns.deleteFailed'),
-        description: error.message || t('campaigns.failedToDeleteCampaign'),
-        variant: "destructive",
-      });
-    },
-  });
+  const deleteCampaignMutation = createMutation(
+    (id: number) => api.deleteCampaign(id),
+    {
+      successTitle: t('campaigns.campaignDeleted'),
+      successMessage: t('campaigns.campaignDeletedSuccess'),
+      errorTitle: t('campaigns.deleteFailed'),
+      errorMessage: t('campaigns.failedToDeleteCampaign'),
+      onSuccess: () => {
+        setShowDeleteDialog(false);
+        setCampaignToDelete(null);
+      }
+    }
+  );
 
   // Removed unused edit functions - functionality moved to dialog
 
@@ -149,10 +91,11 @@ export default function Campaigns() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== 'text/csv') {
+    const validation = validateCSVFile(file);
+    if (!validation.isValid) {
       toast({
         title: t('campaigns.invalidFile'),
-        description: t('campaigns.uploadCsvFile'),
+        description: validation.error || t('campaigns.uploadCsvFile'),
         variant: "destructive",
       });
       return;
@@ -182,28 +125,27 @@ export default function Campaigns() {
     setLocation(`/campaigns/${campaignId}`);
   };
 
-  // Display all campaigns (search functionality removed)
-  const filteredCampaigns = (campaignsData?.campaigns as Campaign[] || []);
+  const handleShowPauseDetails = (campaign: Campaign) => {
+    setPauseDetailsCampaign(campaign);
+    setShowPauseDetails(true);
+  };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-700";
-      case "paused":
-        return "bg-yellow-100 text-yellow-700";
-      case "completed":
-        return "bg-blue-100 text-blue-700";
-      case "draft":
-        return "bg-gray-100 text-gray-700";
-      default:
-        return "bg-gray-100 text-gray-700";
+  const handleClosePauseDetails = () => {
+    setShowPauseDetails(false);
+    setPauseDetailsCampaign(null);
+  };
+
+  const handleResumeFromDetails = () => {
+    if (pauseDetailsCampaign) {
+      resumeCampaignMutation.mutate(pauseDetailsCampaign.id);
+      handleClosePauseDetails();
     }
   };
 
-  const getProgressPercentage = (campaign: Campaign) => {
-    if (campaign.totalLeads === 0) return 0;
-    return Math.round(((campaign.completedCalls || 0) / campaign.totalLeads) * 100);
-  };
+  // Display all campaigns (search functionality removed)
+  const filteredCampaigns = (campaignsData?.campaigns as Campaign[] || []);
+
+  // Using getProgressPercentage from campaign-utils
 
   const handleCreateCampaign = () => {
     if (!newCampaignName.trim()) {
@@ -406,18 +348,33 @@ export default function Campaigns() {
                               </Button>
                             )}
                             {campaign.status === 'paused' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleStatusUpdate(campaign.id, "active");
-                                }}
-                                className="h-8 px-3 border-green-200 text-green-700 hover:bg-green-50"
-                              >
-                                <Play className="h-3 w-3 mr-1" />
-                                {t('common.resume')}
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShowPauseDetails(campaign);
+                                  }}
+                                  className="h-8 px-3 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                >
+                                  <Info className="h-3 w-3 mr-1" />
+                                  Details
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    resumeCampaignMutation.mutate(campaign.id);
+                                  }}
+                                  className="h-8 px-3 border-green-200 text-green-700 hover:bg-green-50"
+                                  disabled={resumeCampaignMutation.isPending}
+                                >
+                                  <Play className="h-3 w-3 mr-1" />
+                                  {resumeCampaignMutation.isPending ? 'Resuming...' : t('common.resume')}
+                                </Button>
+                              </>
                             )}
                           </div>
                           
@@ -543,6 +500,17 @@ export default function Campaigns() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pause Details Dialog */}
+      {pauseDetailsCampaign && (
+        <CampaignPauseDetails
+          campaignId={pauseDetailsCampaign.id}
+          campaignName={pauseDetailsCampaign.name}
+          isOpen={showPauseDetails}
+          onClose={handleClosePauseDetails}
+          onResume={handleResumeFromDetails}
+        />
+      )}
     </div>
   );
 }

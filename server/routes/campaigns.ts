@@ -8,6 +8,38 @@ interface AuthenticatedRequest extends Request {
   user?: any;
 }
 
+// Helper function for force deleting ElevenLabs knowledge base documents
+async function forceDeleteElevenLabsDocument(docId: string, filename: string, context: string): Promise<{ success: boolean; message: string }> {
+  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+  
+  if (!elevenLabsApiKey) {
+    return { success: false, message: "No ElevenLabs API key configured" };
+  }
+
+  try {
+    console.log(`[${context}] 🔥 Force deleting ElevenLabs document: ${docId} (${filename})`);
+    
+    const deleteResponse = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${docId}?force=true`, {
+      method: 'DELETE',
+      headers: {
+        'xi-api-key': elevenLabsApiKey,
+      },
+    });
+
+    if (deleteResponse.ok || deleteResponse.status === 404) {
+      console.log(`[${context}] ✅ Successfully force deleted: ${filename}`);
+      return { success: true, message: `Force deleted ${filename} (removed from all agents)` };
+    } else {
+      const errorText = await deleteResponse.text();
+      console.error(`[${context}] ❌ Failed to force delete:`, errorText);
+      return { success: false, message: `Failed to force delete ${filename}: ${errorText}` };
+    }
+  } catch (error) {
+    console.error(`[${context}] ❌ Error during force deletion:`, error);
+    return { success: false, message: `Error deleting ${filename}: ${error}` };
+  }
+}
+
 export function registerCampaignRoutes(app: Express): void {
   
   // Get all campaigns (user-specific) with real-time stats
@@ -151,7 +183,8 @@ export function registerCampaignRoutes(app: Express): void {
       const knowledgeBaseFiles = await storage.getKnowledgeBaseByCampaign(campaignId);
       console.log(`[Delete Campaign] Found ${knowledgeBaseFiles.length} knowledge base files to clean up`);
 
-      // Delete knowledge base files from ElevenLabs first
+      // Force delete knowledge base files from ElevenLabs first
+      // Using force=true automatically removes documents from all dependent agents
       const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
       let elevenlabsCleanupResults: string[] = [];
       
@@ -160,29 +193,8 @@ export function registerCampaignRoutes(app: Express): void {
         
         for (const kbFile of knowledgeBaseFiles) {
           if (kbFile.elevenlabsDocId) {
-            try {
-              const deleteUrl = `https://api.elevenlabs.io/v1/convai/knowledge-base/${kbFile.elevenlabsDocId}`;
-              console.log(`[Delete Campaign] Deleting ElevenLabs document: ${kbFile.elevenlabsDocId}`);
-              
-              const deleteResponse = await fetch(deleteUrl, {
-                method: 'DELETE',
-                headers: {
-                  'xi-api-key': elevenLabsApiKey,
-                },
-              });
-
-              if (deleteResponse.ok || deleteResponse.status === 404) {
-                elevenlabsCleanupResults.push(`✓ Deleted ${kbFile.filename}`);
-                console.log(`[Delete Campaign] Successfully deleted ${kbFile.filename} from ElevenLabs`);
-              } else {
-                const errorText = await deleteResponse.text();
-                elevenlabsCleanupResults.push(`✗ Failed to delete ${kbFile.filename}: ${errorText}`);
-                console.error(`[Delete Campaign] Failed to delete ${kbFile.filename}:`, errorText);
-              }
-            } catch (error) {
-              elevenlabsCleanupResults.push(`✗ Error deleting ${kbFile.filename}: ${error}`);
-              console.error(`[Delete Campaign] Error deleting ${kbFile.filename}:`, error);
-            }
+            const result = await forceDeleteElevenLabsDocument(kbFile.elevenlabsDocId, kbFile.filename, "Delete Campaign");
+            elevenlabsCleanupResults.push(result.success ? `✓ ${result.message}` : `✗ ${result.message}`);
           }
         }
 
@@ -400,9 +412,9 @@ export function registerCampaignRoutes(app: Express): void {
         log.status === 'no-answer'
       );
       
-      // Calculate successful calls (completed calls > 3 seconds)
+      // Calculate successful calls (completed calls with conversation IDs = real conversations)
       const successfulCallLogs = completedCallLogs.filter(log => 
-        (log.duration || 0) > 3
+        !!log.elevenLabsConversationId
       );
       
       console.log(`[Reset Stats] Campaign ${campaignId}:`, {
@@ -457,7 +469,7 @@ export function registerCampaignRoutes(app: Express): void {
           );
           
           const successfulCallLogs = completedCallLogs.filter(log => 
-            (log.duration || 0) > 3
+            !!log.elevenLabsConversationId
           );
           
           const oldStats = {
@@ -671,23 +683,13 @@ export function registerCampaignRoutes(app: Express): void {
         return res.status(404).json({ error: "Knowledge base file not found" });
       }
 
-      // Delete from ElevenLabs if applicable
+      // Force delete from ElevenLabs (removes from all dependent agents automatically)
       const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
-      if (elevenLabsApiKey && knowledgeBaseFile.elevenlabsDocId) {
-        try {
-          const deleteResponse = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${knowledgeBaseFile.elevenlabsDocId}`, {
-            method: 'DELETE',
-            headers: {
-              'xi-api-key': elevenLabsApiKey,
-            },
-          });
-
-          if (!deleteResponse.ok && deleteResponse.status !== 404) {
-            console.error('Failed to delete from ElevenLabs:', await deleteResponse.text());
-          }
-        } catch (error) {
-          console.error('Error deleting from ElevenLabs:', error);
-          // Continue with local deletion even if ElevenLabs fails
+      if (knowledgeBaseFile.elevenlabsDocId) {
+        const result = await forceDeleteElevenLabsDocument(knowledgeBaseFile.elevenlabsDocId, knowledgeBaseFile.filename, "Delete KB File");
+        // Log the result but continue with local deletion regardless
+        if (!result.success) {
+          console.warn(`[Delete KB File] ElevenLabs deletion failed, continuing with local deletion: ${result.message}`);
         }
       }
 
@@ -726,6 +728,98 @@ export function registerCampaignRoutes(app: Express): void {
     } catch (error) {
       console.error('Delete knowledge base file error:', error);
       res.status(500).json({ error: "Failed to delete knowledge base file" });
+    }
+  });
+
+  // Get campaign pause details
+  app.get("/api/campaigns/:id/pause-details", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      
+      // Check campaign ownership
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== req.user!.id) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      
+      // Get leads and call logs
+      const leads = await storage.getLeadsByCampaign(campaignId);
+      const callLogs = await storage.getCallLogsByCampaign(campaignId);
+      
+      // Create a leads lookup map for efficient searching
+      const leadsMap = new Map(leads.map(lead => [lead.id, lead]));
+      
+      // Process data in single pass for efficiency
+      const statistics = {
+        totalLeads: leads.length,
+        pendingLeads: 0,
+        callingLeads: 0,
+        completedLeads: 0,
+        failedLeads: 0,
+        totalCallsTriggered: 0,
+        ongoingCallsCount: 0
+      };
+      
+      // Count lead statuses in single iteration
+      leads.forEach(lead => {
+        switch (lead.status) {
+          case 'pending': statistics.pendingLeads++; break;
+          case 'calling': statistics.callingLeads++; break;
+          case 'completed': statistics.completedLeads++; break;
+          case 'failed': statistics.failedLeads++; break;
+        }
+      });
+      
+      // Process call logs in single iteration
+      const ongoingCalls: any[] = [];
+      callLogs.forEach(log => {
+        if (log.twilioCallSid) statistics.totalCallsTriggered++;
+        
+        if (log.status === 'initiated' || log.status === 'ringing' || log.status === 'in-progress') {
+          statistics.ongoingCallsCount++;
+          const lead = log.leadId ? leadsMap.get(log.leadId) : undefined;
+          ongoingCalls.push({
+            callId: log.id,
+            twilioCallSid: log.twilioCallSid,
+            phoneNumber: log.phoneNumber,
+            status: log.status,
+            lead: lead ? {
+              id: lead.id,
+              firstName: lead.firstName,
+              lastName: lead.lastName,
+              contactNo: lead.contactNo
+            } : null,
+            createdAt: log.createdAt
+          });
+        }
+      });
+      
+      // Find last processed lead if exists
+      let lastProcessedLead: any = null;
+      if (campaign.lastProcessedLeadId !== null && campaign.lastProcessedLeadId !== undefined) {
+        const foundLead = leadsMap.get(campaign.lastProcessedLeadId);
+        lastProcessedLead = foundLead || null;
+      }
+
+      // Build response object
+      const pauseDetails = {
+        campaign: {
+          id: campaign.id,
+          name: campaign.name,
+          status: campaign.status,
+          pausedAt: campaign.pausedAt,
+          resumedAt: campaign.resumedAt,
+          lastProcessedLeadId: campaign.lastProcessedLeadId
+        },
+        statistics,
+        ongoingCalls,
+        lastProcessedLead
+      };
+      
+      res.json(pauseDetails);
+    } catch (error) {
+      console.error('Get pause details error:', error);
+      res.status(500).json({ error: "Failed to fetch pause details" });
     }
   });
 } 
