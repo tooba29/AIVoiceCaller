@@ -9,6 +9,7 @@ import { FileText, Upload, Save, Bot, Trash2, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import PromptEditor from "./prompt-editor";
 
 interface CampaignSetupProps {
   campaign: any;
@@ -571,19 +572,12 @@ export default function CampaignSetup({ campaign, onCampaignUpdate }: CampaignSe
         </CardHeader>
         <CardContent className="space-y-6">
           {/* First Prompt */}
-          <div>
-            <Label htmlFor="first-prompt" className="text-sm font-medium text-slate-700">
-              {t('campaignSetup.firstPrompt')}
-            </Label>
-            <Textarea
-              id="first-prompt"
-              value={firstPrompt}
-              onChange={(e) => setFirstPrompt(e.target.value)}
-              placeholder="Hi {{first_name}}, I'm Sarah from Mathify. I hope you're having a great day!"
-              className="mt-2 resize-none input-gradient"
-              rows={3}
-            />
-          </div>
+          <PromptEditor
+            value={firstPrompt}
+            onChange={setFirstPrompt}
+            label={t('campaignSetup.firstPrompt')}
+            className=""
+          />
 
           {/* System Persona - Disabled */}
           <div>
