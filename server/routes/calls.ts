@@ -15,33 +15,24 @@ interface AuthenticatedRequest extends Request {
 
 interface ElevenLabsMessage {
   type: string;
-  // Audio response from agent
   audio?: {
     chunk: string;
   };
   audio_event?: {
     audio_base_64: string;
-    event_id?: number;
   };
-  // Ping/Pong for keepalive
   ping_event?: {
     event_id: string;
-    ping_ms?: number;
   };
-  // Agent text responses
   agent_response_event?: {
     agent_response: string;
   };
-  // User speech-to-text
   user_transcription_event?: {
     user_transcript: string;
   };
-  // Conversation initiation response
   conversation_initiation_metadata?: {
     conversation_id?: string;
     agent_id?: string;
-    agent_output_audio_format?: string;
-    user_input_audio_format?: string;
     [key: string]: any;
   };
   conversation_initiation_metadata_event?: {
@@ -50,19 +41,6 @@ interface ElevenLabsMessage {
     user_input_audio_format?: string;
     [key: string]: any;
   };
-  // Interruption handling
-  interruption_event?: {
-    reason?: string;
-  };
-  // Internal tentative responses (may not always be present)
-  tentative_agent_response_internal_event?: {
-    tentative_agent_response: string;
-  };
-  // Voice Activity Detection
-  vad_score_event?: {
-    vad_score: number;
-  };
-  // Conversation ID fallbacks
   conversation_id?: string;
   metadata?: {
     conversation_id?: string;
@@ -177,8 +155,6 @@ async function updateAgentKnowledgeBase(elevenLabsApiKey: string, campaignId: nu
   }
 }
 
-// 🎯 CRITICAL: This function ONLY runs when someone actually picks up the phone!
-// The mere fact this function executes means a real conversation is happening
 const setupElevenLabsConnection = async (
   lead: Lead,
   ws: WebSocket,
@@ -189,27 +165,19 @@ const setupElevenLabsConnection = async (
   let elevenlabsWs: WebSocket | null = null;
   
   try {
-    console.log("🚀 [ElevenLabs] Starting connection setup for:", lead.firstName);
-    console.log("🚀 [ElevenLabs] Parameters:", { streamSid, callSid, campaignId });
-    
     const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
     const elevenLabsAgentId = process.env.ELEVENLABS_AGENT_ID || process.env.ELEVEN_LABS_AGENT_ID;
 
     console.log("=== ElevenLabs Credentials Check ===");
     console.log("API Key exists:", !!elevenLabsApiKey);
     console.log("API Key length:", elevenLabsApiKey?.length);
-    console.log("API Key prefix:", elevenLabsApiKey?.substring(0, 10) + "...");
     console.log("Agent ID:", elevenLabsAgentId);
     console.log("================================");
 
     if (!elevenLabsApiKey || !elevenLabsAgentId) {
-      const error = new Error('Missing ElevenLabs credentials');
-      console.error("❌ [ElevenLabs] CRITICAL ERROR:", error.message);
-      throw error;
+      throw new Error('Missing ElevenLabs credentials');
     }
 
-    console.log("✅ [ElevenLabs] Credentials validated, fetching campaign data...");
-    
     const campaign = campaignId ? await storage.getCampaign(campaignId) : null;
 
     if (!campaign?.systemPersona) {
@@ -270,9 +238,6 @@ const setupElevenLabsConnection = async (
       }
     });
 
-    console.log("📡 [ElevenLabs] API Response status:", response.status);
-    console.log("📡 [ElevenLabs] API Response headers:", Object.fromEntries(response.headers.entries()));
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error("[ElevenLabs] API error details:", {
@@ -285,30 +250,18 @@ const setupElevenLabsConnection = async (
     }
 
     const data = await response.json() as { signed_url: string };
-    console.log("✅ [ElevenLabs] Raw API response:", JSON.stringify(data, null, 2));
-    
     if (!data.signed_url) {
       throw new Error('Invalid response from ElevenLabs API - missing signed_url');
     }
 
-    console.log("✅ [ElevenLabs] Successfully got signed URL");
+    console.log("[ElevenLabs] Successfully got signed URL");
 
-    console.log("🔗 [ElevenLabs] Connecting to WebSocket:", data.signed_url);
+    console.log("[ElevenLabs] Connecting to WebSocket");
     const newWs = new WebSocket(data.signed_url);
     elevenlabsWs = newWs;
 
-    // Set up connection timeout as safeguard
-    const connectionTimeout = setTimeout(() => {
-      if (newWs.readyState !== WebSocket.OPEN) {
-        console.error("⏰ [ElevenLabs] Connection timeout - WebSocket state:", newWs.readyState);
-        console.error("⏰ [ElevenLabs] Connection timeout - closing WebSocket");
-        newWs.close();
-      }
-    }, 30000); // 30 second timeout
-
     newWs.on('open', () => {
-      clearTimeout(connectionTimeout);
-      console.log("🎉 [ElevenLabs] WebSocket connected successfully, sending configuration");
+      console.log("[ElevenLabs] WebSocket connected, sending configuration");
       
       const payload = {
         type: "conversation_initiation_client_data",
@@ -323,12 +276,7 @@ const setupElevenLabsConnection = async (
       console.log("[ElevenLabs] Dynamic variables:", payload.dynamic_variables);
       console.log("[ElevenLabs] Config override:", payload.conversation_config_override);
 
-      try {
-        newWs.send(JSON.stringify(payload));
-        console.log("✅ [ElevenLabs] Configuration payload sent successfully");
-      } catch (sendError) {
-        console.error("❌ [ElevenLabs] Error sending configuration:", sendError);
-      }
+      newWs.send(JSON.stringify(payload));
 
       if (streamSid) {
         activeConnections.set(streamSid, {
@@ -338,7 +286,6 @@ const setupElevenLabsConnection = async (
           callSid,
           campaignId
         });
-        console.log("✅ [ElevenLabs] Added connection to activeConnections with streamSid:", streamSid);
       }
     });
 
@@ -347,6 +294,7 @@ const setupElevenLabsConnection = async (
         const message = JSON.parse(data.toString()) as ElevenLabsMessage;
         
         console.log(`[ElevenLabs] 📥 Received message type: ${message.type}`);
+        //console.log(`[ElevenLabs] 📥 Full message:`, JSON.stringify(message, null, 2));
         
         switch (message.type) {
           case "conversation_initiation_metadata":
@@ -357,7 +305,7 @@ const setupElevenLabsConnection = async (
             
             if (message.conversation_initiation_metadata?.conversation_id) {
               conversationId = message.conversation_initiation_metadata.conversation_id;
-              console.log(`[ElevenLabs] 🎯 CONVERSATION STARTED! ID: ${conversationId} - This proves someone picked up and is talking`);
+              console.log(`[ElevenLabs] ✅ Found Conversation ID in standard location: ${conversationId}`);
             }
             else if ((message as any).conversation_initiation_metadata_event?.conversation_id) {
               conversationId = (message as any).conversation_initiation_metadata_event.conversation_id;
@@ -453,7 +401,6 @@ const setupElevenLabsConnection = async (
             break;
           
           case "interruption":
-            console.log(`[ElevenLabs] Interruption detected: ${message.interruption_event?.reason || 'unknown reason'}`);
             if (streamSid) {
               ws.send(JSON.stringify({ event: "clear", streamSid }));
             }
@@ -475,18 +422,6 @@ const setupElevenLabsConnection = async (
           case "user_transcript":
             console.log(`[ElevenLabs] User transcript: ${message.user_transcription_event?.user_transcript}`);
             break;
-
-          case "internal_tentative_agent_response":
-            // Optional: Handle tentative responses (may be useful for debugging)
-            console.log(`[ElevenLabs] Tentative response: ${message.tentative_agent_response_internal_event?.tentative_agent_response}`);
-            break;
-
-          case "vad_score":
-            // Optional: Handle Voice Activity Detection scores
-            if (message.vad_score_event) {
-              console.log(`[ElevenLabs] VAD Score: ${message.vad_score_event.vad_score}`);
-            }
-            break;
           
           case "conversation_ended":
             console.log(`[ElevenLabs] Conversation ended`);
@@ -501,18 +436,22 @@ const setupElevenLabsConnection = async (
                   );
                   
                   if (callLog && callLog.leadId) {
-                    // If we're here in the conversation_ended event, it means a real conversation happened
-                    // (WebSocket was established, ElevenLabs connected, and conversation ID was generated)
-                    const newLeadStatus = 'completed';
-                    const newCallStatus = 'completed';
+                    // Determine if call was successful based on duration
+                    const callDuration = callLog.duration || 0;
+                    const isSuccessful = callDuration > 3; // Consider calls > 3 seconds as successful
                     
-                    console.log(`[ElevenLabs] ✅ Conversation ended properly - real interaction occurred - marking as completed`);
+                    const newLeadStatus = isSuccessful ? 'completed' : 'failed';
+                    const newCallStatus = isSuccessful ? 'completed' : 'failed';
+                    
+                    console.log(`[ElevenLabs] Updating lead ${callLog.leadId} status to: ${newLeadStatus} (duration: ${callDuration}s)`);
                     
                     // Update lead status
                     await storage.updateLead(callLog.leadId, { status: newLeadStatus });
                     
-                    // Update call log status
-                    await storage.updateCallLog(callLog.id, { status: newCallStatus });
+                    // Update call log status if not already updated
+                    if (callLog.status !== newCallStatus) {
+                      await storage.updateCallLog(callLog.id, { status: newCallStatus });
+                    }
                     
                     // Update campaign statistics
                     await updateCampaignStatistics(campaignId);
@@ -527,14 +466,29 @@ const setupElevenLabsConnection = async (
           default:
             console.log(`[ElevenLabs] Unhandled message type: ${message.type}`);
             
-            // Check if conversation ID exists in unhandled message types
+            const messageAny = message as any;
             let foundConversationId: string | null = null;
-            if (message.conversation_id) {
-              foundConversationId = message.conversation_id;
-            } else if (message.metadata?.conversation_id) {
-              foundConversationId = message.metadata.conversation_id;
-            } else if (message.data?.conversation_id) {
-              foundConversationId = message.data.conversation_id;
+            
+            if (messageAny.conversation_id) {
+              foundConversationId = messageAny.conversation_id;
+            } else if (messageAny.metadata?.conversation_id) {
+              foundConversationId = messageAny.metadata.conversation_id;
+            } else if (messageAny.data?.conversation_id) {
+              foundConversationId = messageAny.data.conversation_id;
+            } else {
+              const searchForConversationId = (obj: any, path = ''): string | null => {
+                for (const [key, value] of Object.entries(obj)) {
+                  const currentPath = path ? `${path}.${key}` : key;
+                  if (typeof value === 'string' && key.toLowerCase().includes('conversation') && key.toLowerCase().includes('id')) {
+                    return value;
+                  } else if (typeof value === 'object' && value !== null) {
+                    const result = searchForConversationId(value, currentPath);
+                    if (result) return result;
+                  }
+                }
+                return null;
+              };
+              foundConversationId = searchForConversationId(messageAny);
             }
             
             if (foundConversationId && campaignId && callSid) {
@@ -565,25 +519,11 @@ const setupElevenLabsConnection = async (
     });
 
     newWs.on('error', error => {
-      console.error("❌ [ElevenLabs] WebSocket error occurred:", error);
-      console.error("❌ [ElevenLabs] Error details:", {
-        message: error.message,
-        code: (error as any).code,
-        type: (error as any).type,
-        target: (error as any).target,
-        stack: error.stack
-      });
-      console.error("❌ [ElevenLabs] WebSocket readyState at error:", newWs.readyState);
-      
-      // Close Twilio connection on ElevenLabs error
-      if (ws.readyState === WebSocket.OPEN) {
-        console.log("🔌 [ElevenLabs] Closing Twilio WebSocket due to ElevenLabs error");
-        ws.close();
-      }
+      console.error("[ElevenLabs] WebSocket error:", error);
     });
 
-    newWs.on('close', (code, reason) => {
-      console.log(`[ElevenLabs] WebSocket closed - Code: ${code}, Reason: ${reason?.toString() || 'No reason'}`);
+    newWs.on('close', () => {
+      console.log("[ElevenLabs] WebSocket disconnected");
       if (streamSid) {
         activeConnections.delete(streamSid);
       }
@@ -599,20 +539,19 @@ const setupElevenLabsConnection = async (
                 log.campaignId === campaignId && log.twilioCallSid === callSid
               );
               
-              if (callLog && callLog.leadId) {
-                // Get all leads for this campaign and find the specific lead
-                const allLeads = await storage.getLeadsByCampaign(campaignId);
-                const currentLead = allLeads.find(lead => lead.id === callLog.leadId);
-                
-                // Only update if lead is still in calling status (not already processed)
-                if (currentLead && currentLead.status === 'calling') {
-                  console.log(`[ElevenLabs] WebSocket closed, checking if conversation occurred`);
+                             if (callLog && callLog.leadId) {
+                 // Get all leads for this campaign and find the specific lead
+                 const allLeads = await storage.getLeadsByCampaign(campaignId);
+                 const currentLead = allLeads.find(lead => lead.id === callLog.leadId);
+                 
+                 // Only update if lead is still in calling status (not already processed)
+                 if (currentLead && currentLead.status === 'calling') {
+                  console.log(`[ElevenLabs] WebSocket closed, updating lead ${callLog.leadId} from calling status`);
                   
-                  // Check if conversation ID was stored (means real conversation happened)
-                  const hasConversationId = !!callLog.elevenLabsConversationId;
-                  const newLeadStatus = hasConversationId ? 'completed' : 'failed';
-                  
-                  console.log(`[ElevenLabs] Lead ${callLog.leadId}: ${hasConversationId ? '✅ Had conversation' : '❌ No conversation'} - marking as ${newLeadStatus}`);
+                  // Determine status based on call duration
+                  const callDuration = callLog.duration || 0;
+                  const isSuccessful = callDuration > 3;
+                  const newLeadStatus = isSuccessful ? 'completed' : 'failed';
                   
                   await storage.updateLead(callLog.leadId, { status: newLeadStatus });
                   
@@ -628,20 +567,9 @@ const setupElevenLabsConnection = async (
       }
     });
 
-
-
   } catch (error) {
-    console.error("💥 [ElevenLabs] SETUP ERROR - Connection failed:", error);
-    console.error("💥 [ElevenLabs] Error details:", {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      name: error instanceof Error ? error.name : typeof error
-    });
-    console.error("💥 [ElevenLabs] Closing Twilio WebSocket due to setup failure");
-    
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
+    console.error("[ElevenLabs] Setup error:", error);
+    ws.close();
   }
 
   return elevenlabsWs;
@@ -770,14 +698,11 @@ export function registerCallRoutes(app: Express): void {
         totalLeads: leads.length,
         completedCalls: completedLeads.length + failedLeads.length,
         successfulCalls: completedLeads.length,
-        failedCalls: failedLeads.length,
-        resumedAt: new Date().toISOString()
+        failedCalls: failedLeads.length
       });
 
       // Start processing calls asynchronously
       processcamp(campaignId);
-
-      console.log(`🚀 [Campaign Start] Campaign ${campaignId} started with status "active" - ${leads.length} leads`);
 
       res.json({ 
         success: true, 
@@ -797,67 +722,17 @@ export function registerCallRoutes(app: Express): void {
     }
   });
 
-  // Resume Campaign
-  app.post("/api/resume-campaign", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const { campaignId } = req.body;
-      if (!campaignId) {
-        return res.status(400).json({ error: "Campaign ID is required" });
-      }
-
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign || campaign.userId !== req.user!.id) {
-        return res.status(404).json({ error: "Campaign not found" });
-      }
-
-      if (campaign.status !== 'paused') {
-        return res.status(400).json({ error: "Campaign is not paused" });
-      }
-
-      const leads = await storage.getLeadsByCampaign(campaignId);
-      const pendingLeads = leads.filter(l => l.status === 'pending');
-      
-      if (pendingLeads.length === 0) {
-        return res.status(400).json({ error: "No pending leads to resume" });
-      }
-
-      // Update campaign status and resume timestamp
-      await storage.updateCampaign(campaignId, { 
-        status: "active",
-        resumedAt: new Date().toISOString()
-      });
-
-      // Resume processing calls asynchronously
-      processcamp(campaignId);
-
-      res.json({ 
-        success: true, 
-        message: `Campaign resumed with ${pendingLeads.length} pending leads`,
-        campaign: { 
-          ...campaign, 
-          status: "active"
-        }
-      });
-    } catch (error) {
-      console.error('Campaign resume error:', error);
-      res.status(500).json({ error: "Failed to resume campaign" });
-    }
-  });
-
-  // Twilio Status Callback - Uses conversation ID to determine real success
-  // ✅ LOGIC: If ElevenLabs conversation ID exists = someone picked up = success
-  // ❌ LOGIC: If no conversation ID = no pickup (TwiML never called) = failed
+  // Twilio Status Callback - Enhanced to update lead statuses and campaign stats
   app.post("/api/twilio/status", async (req: Request, res: Response) => {
     try {
       const { CallSid, CallStatus, CallDuration, CallFrom, CallTo } = req.body;
       
-      console.log('🔄 [Twilio Status Callback]:', { 
+      console.log('Twilio status callback:', { 
         CallSid, 
         CallStatus, 
-        CallDuration: `${CallDuration}s`, 
+        CallDuration, 
         CallFrom, 
-        CallTo,
-        timestamp: new Date().toISOString()
+        CallTo 
       });
       
       if (CallSid) {
@@ -871,23 +746,18 @@ export function registerCallRoutes(app: Express): void {
         const finalStatuses = ['completed', 'failed', 'busy', 'no-answer'];
         if (updatedCallLog && finalStatuses.includes(CallStatus) && updatedCallLog.leadId && updatedCallLog.campaignId) {
           
-          // Determine lead status based on whether someone actually picked up and had a conversation
+          // Determine lead status based on call outcome
           let newLeadStatus: string;
-          
-          // The presence of an ElevenLabs conversation ID means someone answered and conversation started
-          const hasConversationId = !!updatedCallLog.elevenLabsConversationId;
-          
-          if (hasConversationId) {
-            // Real conversation happened - someone picked up and WebSocket/ElevenLabs connected
-            newLeadStatus = 'completed';
-            console.log(`[Twilio] ✅ Call had conversation (ID: ${updatedCallLog.elevenLabsConversationId}) - marking as completed`);
+          if (CallStatus === 'completed') {
+            // For completed calls, check duration to determine success
+            const duration = CallDuration ? parseInt(CallDuration) : 0;
+            newLeadStatus = duration > 3 ? 'completed' : 'failed';
           } else {
-            // No conversation ID = no pickup or immediate hangup (TwiML never called)
+            // For other final statuses, mark as failed
             newLeadStatus = 'failed';
-            console.log(`[Twilio] ❌ No conversation ID found - call was not picked up - marking as failed`);
           }
           
-          console.log(`[Twilio] Updating lead ${updatedCallLog.leadId} status to: ${newLeadStatus} (conversation ID: ${hasConversationId ? 'EXISTS' : 'MISSING'})`);
+          console.log(`[Twilio] Updating lead ${updatedCallLog.leadId} status to: ${newLeadStatus} (call status: ${CallStatus}, duration: ${CallDuration}s)`);
           
           // Update lead status
           await storage.updateLead(updatedCallLog.leadId, { status: newLeadStatus });
@@ -905,11 +775,10 @@ export function registerCallRoutes(app: Express): void {
     }
   });
 
-  // TwiML endpoint - ONLY called when someone actually picks up the phone
-  // If no pickup, Twilio never calls this endpoint = no WebSocket = no ElevenLabs = no conversation ID
+  // TwiML endpoint - restored original functionality
   app.all("/outbound-call-twiml", (req, res) => {
     try {
-      console.log("🎯 [TwiML] CALL PICKED UP - Someone answered! Incoming request:", {
+      console.log("[TwiML] Incoming request:", {
         method: req.method,
         url: req.url,
         query: req.query,
@@ -960,16 +829,12 @@ export function registerCallRoutes(app: Express): void {
         leadId: leadId?.toString()
       };
       
-      // 🔥 CRITICAL FIX: Use callSid as unique key instead of campaignId
-      // This prevents race conditions when multiple calls in same campaign happen simultaneously
-      const callSid = req.body.CallSid;
-      const key = callSid ? `${callSid}_params` : `${campaignId}_${leadId}_params`;
+      const key = `${campaignId}_params`;
       connectionParams.set(key, params);
       
       console.log("[TwiML] Stored connection parameters:", {
         key,
         params,
-        callSid,
         allStoredParams: Array.from(connectionParams.entries())
       });
 
@@ -983,7 +848,7 @@ export function registerCallRoutes(app: Express): void {
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapedStreamUrl}" track="both_tracks" />
+    <Stream url="${escapedStreamUrl}" track="inbound_track" />
   </Connect>
 </Response>`;
 
@@ -1127,7 +992,7 @@ async function updateCampaignStatistics(campaignId: number) {
       log.status === 'failed' || log.status === 'busy' || log.status === 'no-answer'
     ).length;
     const successfulCalls = allCallLogs.filter(log => 
-      log.status === 'completed' && !!log.elevenLabsConversationId
+      log.status === 'completed' && (log.duration || 0) > 3
     ).length;
     
     await storage.updateCampaign(campaignId, {
@@ -1200,33 +1065,8 @@ async function processcamp(campaignId: number) {
     // Initialize Twilio client
     const twilioClient: Twilio = twilio(twilioAccountSid, twilioAuthToken);
 
-    // Process each lead with efficient status checking
-    for (let i = 0; i < pendingLeads.length; i++) {
-      const lead = pendingLeads[i];
-      
-      // Check campaign status every 5 leads or at the beginning to avoid excessive DB calls
-      if (i % 5 === 0 || i === 0) {
-        const currentCampaign = await storage.getCampaign(campaignId);
-        if (!currentCampaign) {
-          console.log(`[Campaign ${campaignId}] Campaign not found, stopping processing`);
-          break;
-        }
-        
-        if (currentCampaign.status === 'paused') {
-          console.log(`[Campaign ${campaignId}] Campaign paused, stopping processing at lead ${lead.id}`);
-          await storage.updateCampaign(campaignId, { 
-            pausedAt: new Date().toISOString(),
-            lastProcessedLeadId: lead.id
-          });
-          break;
-        }
-        
-        if (currentCampaign.status !== 'active') {
-          console.log(`[Campaign ${campaignId}] Campaign status is ${currentCampaign.status}, stopping processing`);
-          break;
-        }
-      }
-
+    // Process each lead
+    for (const lead of pendingLeads) {
       let callLog: any = null;
       try {
         console.log(`[Campaign ${campaignId}] Processing lead ${lead.id} (${lead.firstName} - ${lead.contactNo})`);
@@ -1259,19 +1099,14 @@ async function processcamp(campaignId: number) {
         // Ensure baseUrl uses https
         const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
 
-        // Create TwiML URL for the call - using same pattern as test calls
-        const twimlUrl = new URL(`${secureBaseUrl}/outbound-call-twiml`);
-        twimlUrl.searchParams.append('campaignId', campaignId.toString());
-        twimlUrl.searchParams.append('leadId', lead.id.toString());
-        twimlUrl.searchParams.append('firstName', lead.firstName || 'there');
-        
-        console.log("[Campaign] TwiML URL constructed:", twimlUrl.toString());
+        // Create TwiML URL for the call with campaignId as query parameter
+        const twimlUrl = `${secureBaseUrl}/outbound-call-twiml?campaignId=${campaignId}&leadId=${lead.id}&firstName=${encodeURIComponent(lead.firstName || 'there')}`;
 
         // Make the call using Twilio
         const call = await twilioClient.calls.create({
           to: lead.contactNo,
           from: twilioPhoneNumber,
-          url: twimlUrl.toString(),
+          url: twimlUrl,
           statusCallback: `${secureBaseUrl}/api/twilio/status`,
           statusCallbackMethod: 'POST',
           statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
@@ -1398,57 +1233,24 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
-      // 🔥 CRITICAL FIX: Look for parameters using multiple possible key formats
-      // Try callSid-based key first, then fallback to campaignId-based keys
-      let params: any = null;
-      let foundKey: string | null = null;
-      
-      // Get all keys that might match this campaign
-      const allKeys = Array.from(connectionParams.keys());
-      const campaignKeys = allKeys.filter(k => 
-        k.startsWith(`${campaignId}_`) || k.endsWith(`_params_${campaignId}`)
-      );
-      
-      console.log("[WebSocket] Looking for connection params:", {
-        campaignId,
-        allKeys,
-        campaignKeys,
-        totalParams: connectionParams.size
-      });
-      
-      // Try to find the most recent parameters for this campaign
-      if (campaignKeys.length > 0) {
-        foundKey = campaignKeys[campaignKeys.length - 1]; // Get the most recent
-        params = connectionParams.get(foundKey);
-      }
+      const key = `${campaignId}_params`;
+      const params = connectionParams.get(key);
       
       console.log("[WebSocket] Retrieved connection params:", {
-        foundKey,
+        key,
         hasParams: !!params,
-        params,
-        campaignKeys
+        params
       });
 
       if (!params) {
-        console.error("❌ [WebSocket] No stored parameters found for campaignId:", campaignId);
-        console.error("❌ [WebSocket] Available parameter keys:", allKeys);
-        console.error("❌ [WebSocket] Searched for campaign keys:", campaignKeys);
+        console.error("[WebSocket] No stored parameters found for campaignId:", campaignId);
         ws.close();
         return;
       }
 
       const { isTestCall, firstName, leadId } = params;
       
-      console.log("🔍 [WebSocket] Lead setup - params analysis:", { 
-        isTestCall, 
-        firstName, 
-        leadId, 
-        leadIdType: typeof leadId,
-        campaignId 
-      });
-      
       if (isTestCall) {
-        console.log("✅ [WebSocket] Setting up TEST CALL lead");
         currentLead = {
           id: 0,
           campaignId,
@@ -1459,32 +1261,11 @@ export function setupWebSocketServer(httpServer: Server): void {
           callDuration: null,
           createdAt: new Date()
         };
-        console.log("✅ [WebSocket] Test lead created:", currentLead);
       } 
       else if (leadId) {
-        console.log("🔍 [WebSocket] Setting up CAMPAIGN CALL lead - searching for leadId:", leadId);
-        
         const leads = await storage.getLeadsByCampaign(campaignId);
-        console.log("🔍 [WebSocket] Found leads for campaign:", {
-          campaignId,
-          totalLeads: leads.length,
-          leadIds: leads.map(l => ({ id: l.id, firstName: l.firstName }))
-        });
-        
-        const leadIdNum = parseInt(leadId);
-        console.log("🔍 [WebSocket] Looking for lead with ID:", leadIdNum, "from string:", leadId);
-        
-        const foundLead = leads.find(l => l.id === leadIdNum);
-        console.log("🔍 [WebSocket] Lead search result:", foundLead ? "FOUND" : "NOT FOUND");
-        
+        const foundLead = leads.find(l => l.id === parseInt(leadId));
         if (foundLead) {
-          console.log("✅ [WebSocket] Found lead:", {
-            id: foundLead.id,
-            firstName: foundLead.firstName,
-            contactNo: foundLead.contactNo,
-            status: foundLead.status
-          });
-          
           currentLead = {
             id: foundLead.id,
             campaignId: foundLead.campaignId,
@@ -1495,55 +1276,20 @@ export function setupWebSocketServer(httpServer: Server): void {
             callDuration: foundLead.callDuration,
             createdAt: foundLead.createdAt || new Date()
           };
-          console.log("✅ [WebSocket] Campaign lead created:", currentLead);
-        } else {
-          console.error("❌ [WebSocket] Lead NOT FOUND - leadId:", leadId, "parsed as:", leadIdNum);
-          console.error("❌ [WebSocket] Available lead IDs:", leads.map(l => l.id));
         }
-      } else {
-        console.error("❌ [WebSocket] No leadId provided for campaign call");
       }
 
       if (!currentLead) {
-        console.error("❌ [WebSocket] No lead data found", { isTestCall, leadId, campaignId });
-        
-        // CRITICAL FIX: If lead lookup failed but we have basic info, create a fallback lead
-        // This ensures campaign calls work the same way as test calls
-        if (!isTestCall && leadId && firstName) {
-          console.log("🔄 [WebSocket] FALLBACK: Creating temporary lead for campaign call");
-          currentLead = {
-            id: parseInt(leadId),
-            campaignId,
-            firstName: firstName || 'Unknown',
-            lastName: '',
-            contactNo: '',
-            status: 'calling',
-            callDuration: null,
-            createdAt: new Date()
-          };
-          console.log("✅ [WebSocket] Fallback lead created:", currentLead);
-        } else {
-          console.error("❌ [WebSocket] Cannot create fallback lead - missing required data");
-          ws.close();
-          return;
-        }
+        console.error("[WebSocket] No lead data found", { isTestCall, leadId, campaignId });
+        ws.close();
+        return;
       }
 
-      // Don't delete connection params yet - wait until after successful ElevenLabs setup
-      // connectionParams.delete(key);
-
-      console.log("🎧 [WebSocket] Setting up message listeners for lead:", currentLead.firstName);
+      connectionParams.delete(key);
 
       ws.on('message', async (message: RawData) => {
         try {
           const msg = JSON.parse(message.toString()) as TwilioMessage;
-          
-          console.log("📨 [Twilio] Received WebSocket message:", {
-            event: msg.event,
-            hasStart: !!msg.start,
-            hasMedia: !!msg.media,
-            fullMessage: msg
-          });
           
           switch (msg.event) {
             case "start":
@@ -1553,36 +1299,10 @@ export function setupWebSocketServer(httpServer: Server): void {
                 console.log(`[Twilio] Stream started - StreamSid: ${streamSid}, CallSid: ${callSid}, CampaignId: ${campaignId}, LeadId: ${leadId}, TestCall: ${isTestCall}`);
                 
                 if (currentLead && streamSid && callSid && campaignId !== null) {
-                  console.log("🔄 [Twilio] Initiating ElevenLabs connection setup...");
-                  console.log("🔄 [Twilio] Setup params:", { 
-                    leadName: currentLead.firstName,
-                    leadId: currentLead.id,
-                    streamSid, 
-                    callSid, 
-                    campaignId 
-                  });
-                  
-                  try {
-                    elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
-                    
-                    if (elevenlabsWs) {
-                      console.log("✅ [Twilio] ElevenLabs connection setup completed successfully");
-                      // Now it's safe to delete connection params since we're fully connected
-                      if (foundKey) {
-                        connectionParams.delete(foundKey);
-                        console.log("🧹 [Twilio] Cleaned up connection params for key:", foundKey);
-                      }
-                    } else {
-                      console.error("❌ [Twilio] ElevenLabs connection setup returned null");
-                    }
-                  } catch (setupError) {
-                    console.error("💥 [Twilio] Error during ElevenLabs setup:", setupError);
-                    ws.close();
-                  }
+                  elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
                 } else {
-                  console.error("❌ [Twilio] Missing required data for call setup", { 
+                  console.error("[Twilio] Missing required data for call setup", { 
                     hasLead: !!currentLead, 
-                    leadData: currentLead ? { id: currentLead.id, firstName: currentLead.firstName } : null,
                     streamSid, 
                     callSid, 
                     campaignId 
@@ -1593,65 +1313,13 @@ export function setupWebSocketServer(httpServer: Server): void {
               break;
             
             case "media":
-              // 🔥 CRITICAL FIX: If we get media but haven't set up ElevenLabs yet, 
-              // it means Twilio never sent the "start" event. Set it up now!
-              if (!elevenlabsWs && !streamSid && msg.media?.payload && currentLead && campaignId !== null) {
-                console.log("🚨 [Twilio] MISSING START EVENT - Got media without start! Initiating setup now...");
-                console.log("🚨 [Twilio] Message details:", {
-                  hasStreamSid: !!(msg as any).streamSid,
-                  streamSidValue: (msg as any).streamSid,
-                  messageKeys: Object.keys(msg)
-                });
-                
-                // Extract streamSid from the message - it's directly on the message object
-                streamSid = (msg as any).streamSid;
-                callSid = `RECOVERED_${Date.now()}`; // Generate a fallback callSid
-                
-                if (streamSid) {
-                  console.log("🔄 [Twilio] Emergency ElevenLabs setup with recovered streamSid:", streamSid);
-                  
-                  try {
-                    elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
-                    
-                    if (elevenlabsWs) {
-                      console.log("✅ [Twilio] Emergency ElevenLabs connection setup completed successfully");
-                      // Now it's safe to delete connection params since we're fully connected
-                      if (foundKey) {
-                        connectionParams.delete(foundKey);
-                        console.log("🧹 [Twilio] Cleaned up connection params for key:", foundKey);
-                      }
-                                    } else {
-                  console.error("❌ [Twilio] Emergency ElevenLabs connection setup returned null");
-                }
-              } catch (setupError) {
-                console.error("💥 [Twilio] Error during emergency ElevenLabs setup:", setupError);
+              if (elevenlabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
+                elevenlabsWs.send(JSON.stringify({ 
+                  type: "user_audio_chunk",
+                  user_audio_chunk: msg.media.payload 
+                }));
               }
-            } else {
-              console.log("🚨 [Twilio] Emergency setup conditions not met:", {
-                hasElevenlabsWs: !!elevenlabsWs,
-                hasStreamSid: !!streamSid,
-                hasMediaPayload: !!msg.media?.payload,
-                hasCurrentLead: !!currentLead,
-                hasCampaignId: campaignId !== null,
-                extractedStreamSid: (msg as any).streamSid
-              });
-            }
-          }
-          
-          // Process the media normally
-          if (elevenlabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
-            elevenlabsWs.send(JSON.stringify({ 
-              type: "user_audio_chunk",
-              user_audio_chunk: msg.media.payload 
-            }));
-          } else if (msg.media?.payload) {
-            console.log("📭 [Twilio] Media received but no ElevenLabs connection:", {
-              elevenlabsWsState: elevenlabsWs?.readyState,
-              hasElevenlabsWs: !!elevenlabsWs,
-              hasPayload: !!msg.media?.payload
-            });
-          }
-          break;
+              break;
             
             case "stop":
               console.log(`[Twilio] Stream ${streamSid} ended`);
@@ -1666,31 +1334,19 @@ export function setupWebSocketServer(httpServer: Server): void {
             default:
               console.log(`[Twilio] Unhandled event: ${msg.event}`);
           }
-            } catch (error) {
-      console.error("❌ [Twilio] Error processing WebSocket message:", error);
-      console.error("❌ [Twilio] Raw message that caused error:", message.toString());
-    }
+        } catch (error) {
+          console.error("[Twilio] Error processing message:", error);
+        }
       });
 
-      ws.on('close', (code, reason) => {
-        console.log("🔌 [Twilio] WebSocket closed:", { 
-          code, 
-          reason: reason?.toString(), 
-          streamSid, 
-          callSid,
-          hadElevenLabsConnection: !!elevenlabsWs,
-          leadData: currentLead ? { id: currentLead.id, firstName: currentLead.firstName } : null
-        });
+      ws.on('close', () => {
+        console.log("[Twilio] Client disconnected", { streamSid, callSid });
         if (streamSid) {
           activeConnections.delete(streamSid);
         }
         if (elevenlabsWs?.readyState === WebSocket.OPEN) {
           elevenlabsWs.close();
         }
-      });
-
-      ws.on('error', (error) => {
-        console.error("❌ [Twilio] WebSocket error:", error);
       });
 
     } catch (error) {
