@@ -960,12 +960,16 @@ export function registerCallRoutes(app: Express): void {
         leadId: leadId?.toString()
       };
       
-      const key = `${campaignId}_params`;
+      // 🔥 CRITICAL FIX: Use callSid as unique key instead of campaignId
+      // This prevents race conditions when multiple calls in same campaign happen simultaneously
+      const callSid = req.body.CallSid;
+      const key = callSid ? `${callSid}_params` : `${campaignId}_${leadId}_params`;
       connectionParams.set(key, params);
       
       console.log("[TwiML] Stored connection parameters:", {
         key,
         params,
+        callSid,
         allStoredParams: Array.from(connectionParams.entries())
       });
 
@@ -1394,20 +1398,41 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
-      const key = `${campaignId}_params`;
-      const params = connectionParams.get(key);
+      // 🔥 CRITICAL FIX: Look for parameters using multiple possible key formats
+      // Try callSid-based key first, then fallback to campaignId-based keys
+      let params: any = null;
+      let foundKey: string | null = null;
+      
+      // Get all keys that might match this campaign
+      const allKeys = Array.from(connectionParams.keys());
+      const campaignKeys = allKeys.filter(k => 
+        k.startsWith(`${campaignId}_`) || k.endsWith(`_params_${campaignId}`)
+      );
+      
+      console.log("[WebSocket] Looking for connection params:", {
+        campaignId,
+        allKeys,
+        campaignKeys,
+        totalParams: connectionParams.size
+      });
+      
+      // Try to find the most recent parameters for this campaign
+      if (campaignKeys.length > 0) {
+        foundKey = campaignKeys[campaignKeys.length - 1]; // Get the most recent
+        params = connectionParams.get(foundKey);
+      }
       
       console.log("[WebSocket] Retrieved connection params:", {
-        key,
+        foundKey,
         hasParams: !!params,
         params,
-        allStoredKeys: Array.from(connectionParams.keys())
+        campaignKeys
       });
 
       if (!params) {
         console.error("❌ [WebSocket] No stored parameters found for campaignId:", campaignId);
-        console.error("❌ [WebSocket] Available parameter keys:", Array.from(connectionParams.keys()));
-        console.error("❌ [WebSocket] Looking for key:", key);
+        console.error("❌ [WebSocket] Available parameter keys:", allKeys);
+        console.error("❌ [WebSocket] Searched for campaign keys:", campaignKeys);
         ws.close();
         return;
       }
@@ -1543,9 +1568,10 @@ export function setupWebSocketServer(httpServer: Server): void {
                     if (elevenlabsWs) {
                       console.log("✅ [Twilio] ElevenLabs connection setup completed successfully");
                       // Now it's safe to delete connection params since we're fully connected
-                      const key = `${campaignId}_params`;
-                      connectionParams.delete(key);
-                      console.log("🧹 [Twilio] Cleaned up connection params for key:", key);
+                      if (foundKey) {
+                        connectionParams.delete(foundKey);
+                        console.log("🧹 [Twilio] Cleaned up connection params for key:", foundKey);
+                      }
                     } else {
                       console.error("❌ [Twilio] ElevenLabs connection setup returned null");
                     }
@@ -1590,9 +1616,10 @@ export function setupWebSocketServer(httpServer: Server): void {
                     if (elevenlabsWs) {
                       console.log("✅ [Twilio] Emergency ElevenLabs connection setup completed successfully");
                       // Now it's safe to delete connection params since we're fully connected
-                      const key = `${campaignId}_params`;
-                      connectionParams.delete(key);
-                      console.log("🧹 [Twilio] Cleaned up connection params for key:", key);
+                      if (foundKey) {
+                        connectionParams.delete(foundKey);
+                        console.log("🧹 [Twilio] Cleaned up connection params for key:", foundKey);
+                      }
                                     } else {
                   console.error("❌ [Twilio] Emergency ElevenLabs connection setup returned null");
                 }
