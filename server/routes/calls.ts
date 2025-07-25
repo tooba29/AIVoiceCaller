@@ -829,16 +829,12 @@ export function registerCallRoutes(app: Express): void {
         leadId: leadId?.toString()
       };
       
-      // 🔥 DYNAMIC KEY: Use the actual CallSid from this specific call
-      // Each call has a unique CallSid, so no race conditions possible
-      const callSid = req.body.CallSid;
-      const key = callSid || `${campaignId}_${leadId}_${Date.now()}`;
+      const key = `${campaignId}_params`;
       connectionParams.set(key, params);
       
       console.log("[TwiML] Stored connection parameters:", {
         key,
         params,
-        callSid,
         allStoredParams: Array.from(connectionParams.entries())
       });
 
@@ -1237,41 +1233,17 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
-      // 🔥 FIXED: Look for parameters using the new CallSid-based key format
-      // Since TwiML now stores parameters with unique CallSid keys, search for them
-      let params: any = null;
-      let foundKey: string | null = null;
-      
-      // Get all keys and find any that contain this campaignId
-      const allKeys = Array.from(connectionParams.keys());
-      const campaignKeys = allKeys.filter(k => 
-        k.includes(`${campaignId}_`) || k.startsWith(`CA`) && k.endsWith('_params')
-      );
-      
-      console.log("[WebSocket] Looking for connection params:", {
-        campaignId,
-        allKeys,
-        campaignKeys,
-        totalParams: connectionParams.size
-      });
-      
-      // Find the most recent parameters for this campaign
-      if (campaignKeys.length > 0) {
-        foundKey = campaignKeys[campaignKeys.length - 1]; // Get the most recent
-        params = connectionParams.get(foundKey);
-      }
+      const key = `${campaignId}_params`;
+      const params = connectionParams.get(key);
       
       console.log("[WebSocket] Retrieved connection params:", {
-        foundKey,
+        key,
         hasParams: !!params,
-        params,
-        campaignKeys
+        params
       });
 
       if (!params) {
-        console.error("❌ [WebSocket] No stored parameters found for campaignId:", campaignId);
-        console.error("❌ [WebSocket] Available parameter keys:", allKeys);
-        console.error("❌ [WebSocket] Searched for campaign keys:", campaignKeys);
+        console.error("[WebSocket] No stored parameters found for campaignId:", campaignId);
         ws.close();
         return;
       }
@@ -1313,9 +1285,7 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
-      if (foundKey) {
-        connectionParams.delete(foundKey);
-      }
+      connectionParams.delete(key);
 
       ws.on('message', async (message: RawData) => {
         try {
