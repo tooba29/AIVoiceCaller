@@ -1255,14 +1255,19 @@ async function processcamp(campaignId: number) {
         // Ensure baseUrl uses https
         const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
 
-        // Create TwiML URL for the call with campaignId as query parameter
-        const twimlUrl = `${secureBaseUrl}/outbound-call-twiml?campaignId=${campaignId}&leadId=${lead.id}&firstName=${encodeURIComponent(lead.firstName || 'there')}`;
+        // Create TwiML URL for the call - using same pattern as test calls
+        const twimlUrl = new URL(`${secureBaseUrl}/outbound-call-twiml`);
+        twimlUrl.searchParams.append('campaignId', campaignId.toString());
+        twimlUrl.searchParams.append('leadId', lead.id.toString());
+        twimlUrl.searchParams.append('firstName', lead.firstName || 'there');
+        
+        console.log("[Campaign] TwiML URL constructed:", twimlUrl.toString());
 
         // Make the call using Twilio
         const call = await twilioClient.calls.create({
           to: lead.contactNo,
           from: twilioPhoneNumber,
-          url: twimlUrl,
+          url: twimlUrl.toString(),
           statusCallback: `${secureBaseUrl}/api/twilio/status`,
           statusCallbackMethod: 'POST',
           statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
@@ -1566,9 +1571,14 @@ export function setupWebSocketServer(httpServer: Server): void {
               // it means Twilio never sent the "start" event. Set it up now!
               if (!elevenlabsWs && !streamSid && msg.media?.payload && currentLead && campaignId !== null) {
                 console.log("🚨 [Twilio] MISSING START EVENT - Got media without start! Initiating setup now...");
+                console.log("🚨 [Twilio] Message details:", {
+                  hasStreamSid: !!(msg as any).streamSid,
+                  streamSidValue: (msg as any).streamSid,
+                  messageKeys: Object.keys(msg)
+                });
                 
-                // Extract streamSid from the message if available
-                streamSid = (msg as any).streamSid || null;
+                // Extract streamSid from the message - it's directly on the message object
+                streamSid = (msg as any).streamSid;
                 callSid = `RECOVERED_${Date.now()}`; // Generate a fallback callSid
                 
                 if (streamSid) {
@@ -1583,23 +1593,38 @@ export function setupWebSocketServer(httpServer: Server): void {
                       const key = `${campaignId}_params`;
                       connectionParams.delete(key);
                       console.log("🧹 [Twilio] Cleaned up connection params for key:", key);
-                    } else {
-                      console.error("❌ [Twilio] Emergency ElevenLabs connection setup returned null");
-                    }
-                  } catch (setupError) {
-                    console.error("💥 [Twilio] Error during emergency ElevenLabs setup:", setupError);
-                  }
+                                    } else {
+                  console.error("❌ [Twilio] Emergency ElevenLabs connection setup returned null");
                 }
+              } catch (setupError) {
+                console.error("💥 [Twilio] Error during emergency ElevenLabs setup:", setupError);
               }
-              
-              // Process the media normally
-              if (elevenlabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
-                elevenlabsWs.send(JSON.stringify({ 
-                  type: "user_audio_chunk",
-                  user_audio_chunk: msg.media.payload 
-                }));
-              }
-              break;
+            } else {
+              console.log("🚨 [Twilio] Emergency setup conditions not met:", {
+                hasElevenlabsWs: !!elevenlabsWs,
+                hasStreamSid: !!streamSid,
+                hasMediaPayload: !!msg.media?.payload,
+                hasCurrentLead: !!currentLead,
+                hasCampaignId: campaignId !== null,
+                extractedStreamSid: (msg as any).streamSid
+              });
+            }
+          }
+          
+          // Process the media normally
+          if (elevenlabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
+            elevenlabsWs.send(JSON.stringify({ 
+              type: "user_audio_chunk",
+              user_audio_chunk: msg.media.payload 
+            }));
+          } else if (msg.media?.payload) {
+            console.log("📭 [Twilio] Media received but no ElevenLabs connection:", {
+              elevenlabsWsState: elevenlabsWs?.readyState,
+              hasElevenlabsWs: !!elevenlabsWs,
+              hasPayload: !!msg.media?.payload
+            });
+          }
+          break;
             
             case "stop":
               console.log(`[Twilio] Stream ${streamSid} ended`);
