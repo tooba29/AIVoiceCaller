@@ -829,12 +829,16 @@ export function registerCallRoutes(app: Express): void {
         leadId: leadId?.toString()
       };
       
-      const key = `${campaignId}_params`;
+      // 🔥 CRITICAL FIX: Use callSid as unique key to prevent race conditions
+      // Each call gets its own unique parameter storage, preventing overwrites
+      const callSid = req.body.CallSid;
+      const key = callSid ? `${callSid}_params` : `${campaignId}_${leadId}_${Date.now()}_params`;
       connectionParams.set(key, params);
       
       console.log("[TwiML] Stored connection parameters:", {
         key,
         params,
+        callSid,
         allStoredParams: Array.from(connectionParams.entries())
       });
 
