@@ -979,7 +979,7 @@ export function registerCallRoutes(app: Express): void {
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapedStreamUrl}" track="inbound_track" />
+    <Stream url="${escapedStreamUrl}" track="both_tracks" />
   </Connect>
 </Response>`;
 
@@ -1562,6 +1562,37 @@ export function setupWebSocketServer(httpServer: Server): void {
               break;
             
             case "media":
+              // 🔥 CRITICAL FIX: If we get media but haven't set up ElevenLabs yet, 
+              // it means Twilio never sent the "start" event. Set it up now!
+              if (!elevenlabsWs && !streamSid && msg.media?.payload && currentLead && campaignId !== null) {
+                console.log("🚨 [Twilio] MISSING START EVENT - Got media without start! Initiating setup now...");
+                
+                // Extract streamSid from the message if available
+                streamSid = (msg as any).streamSid || null;
+                callSid = `RECOVERED_${Date.now()}`; // Generate a fallback callSid
+                
+                if (streamSid) {
+                  console.log("🔄 [Twilio] Emergency ElevenLabs setup with recovered streamSid:", streamSid);
+                  
+                  try {
+                    elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
+                    
+                    if (elevenlabsWs) {
+                      console.log("✅ [Twilio] Emergency ElevenLabs connection setup completed successfully");
+                      // Now it's safe to delete connection params since we're fully connected
+                      const key = `${campaignId}_params`;
+                      connectionParams.delete(key);
+                      console.log("🧹 [Twilio] Cleaned up connection params for key:", key);
+                    } else {
+                      console.error("❌ [Twilio] Emergency ElevenLabs connection setup returned null");
+                    }
+                  } catch (setupError) {
+                    console.error("💥 [Twilio] Error during emergency ElevenLabs setup:", setupError);
+                  }
+                }
+              }
+              
+              // Process the media normally
               if (elevenlabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
                 elevenlabsWs.send(JSON.stringify({ 
                   type: "user_audio_chunk",
