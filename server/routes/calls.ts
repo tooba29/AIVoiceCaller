@@ -1345,40 +1345,67 @@ export function setupWebSocketServer(httpServer: Server): void {
 
       ws.on('message', async (message: RawData) => {
         try {
-          const msg = JSON.parse(message.toString()) as TwilioMessage;
+          const rawMessage = message.toString();
+          console.log("[Twilio] 📨 RAW MESSAGE RECEIVED:", rawMessage);
+          
+          const msg = JSON.parse(rawMessage) as TwilioMessage;
+          console.log("[Twilio] 📋 PARSED MESSAGE:", {
+            event: msg.event,
+            hasStart: !!msg.start,
+            hasMedia: !!msg.media,
+            fullMessage: msg
+          });
           
           switch (msg.event) {
             case "start":
+              console.log("[Twilio] 🚀 START event received!", {
+                hasStartObject: !!msg.start,
+                startObject: msg.start,
+                currentLead: !!currentLead,
+                campaignId
+              });
+              
               if (msg.start) {
                 streamSid = msg.start.streamSid;
                 callSid = msg.start.callSid;
-                console.log(`[Twilio] Stream started - StreamSid: ${streamSid}, CallSid: ${callSid}, CampaignId: ${campaignId}, LeadId: ${leadId}, TestCall: ${isTestCall}`);
+                console.log(`[Twilio] ✅ Stream started - StreamSid: ${streamSid}, CallSid: ${callSid}, CampaignId: ${campaignId}, LeadId: ${leadId}, TestCall: ${isTestCall}`);
                 
                 if (currentLead && streamSid && callSid && campaignId !== null) {
+                  console.log("[Twilio] 🎯 All requirements met, setting up ElevenLabs connection...");
                   elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
+                  console.log("[Twilio] ✅ ElevenLabs connection setup completed");
                 } else {
-                  console.error("[Twilio] Missing required data for call setup", { 
+                  console.error("[Twilio] ❌ Missing required data for call setup", { 
                     hasLead: !!currentLead, 
+                    leadData: currentLead,
                     streamSid, 
                     callSid, 
                     campaignId 
                   });
                   ws.close();
                 }
+              } else {
+                console.error("[Twilio] ❌ START event missing start object!");
               }
               break;
             
             case "media":
+              console.log("[Twilio] 🎵 MEDIA event received");
               if (elevenlabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
                 elevenlabsWs.send(JSON.stringify({ 
                   type: "user_audio_chunk",
                   user_audio_chunk: msg.media.payload 
                 }));
+              } else {
+                console.log("[Twilio] ❌ Cannot forward media - ElevenLabs not ready", {
+                  elevenLabsState: elevenlabsWs?.readyState,
+                  hasPayload: !!msg.media?.payload
+                });
               }
               break;
             
             case "stop":
-              console.log(`[Twilio] Stream ${streamSid} ended`);
+              console.log(`[Twilio] 🛑 STOP event - Stream ${streamSid} ended`);
               if (streamSid) {
                 activeConnections.delete(streamSid);
               }
@@ -1388,7 +1415,7 @@ export function setupWebSocketServer(httpServer: Server): void {
               break;
             
             default:
-              console.log(`[Twilio] Unhandled event: ${msg.event}`);
+              console.log(`[Twilio] ❓ Unhandled event: ${msg.event}`, msg);
           }
         } catch (error) {
           console.error("[Twilio] Error processing message:", error);
