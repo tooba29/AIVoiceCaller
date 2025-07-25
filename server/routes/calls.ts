@@ -868,7 +868,7 @@ export function registerCallRoutes(app: Express): void {
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapedStreamUrl}" track="inbound_track" />
+    <Stream url="${escapedStreamUrl}" track="both" />
   </Connect>
 </Response>`;
 
