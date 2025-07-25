@@ -189,19 +189,27 @@ const setupElevenLabsConnection = async (
   let elevenlabsWs: WebSocket | null = null;
   
   try {
+    console.log("🚀 [ElevenLabs] Starting connection setup for:", lead.firstName);
+    console.log("🚀 [ElevenLabs] Parameters:", { streamSid, callSid, campaignId });
+    
     const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
     const elevenLabsAgentId = process.env.ELEVENLABS_AGENT_ID || process.env.ELEVEN_LABS_AGENT_ID;
 
     console.log("=== ElevenLabs Credentials Check ===");
     console.log("API Key exists:", !!elevenLabsApiKey);
     console.log("API Key length:", elevenLabsApiKey?.length);
+    console.log("API Key prefix:", elevenLabsApiKey?.substring(0, 10) + "...");
     console.log("Agent ID:", elevenLabsAgentId);
     console.log("================================");
 
     if (!elevenLabsApiKey || !elevenLabsAgentId) {
-      throw new Error('Missing ElevenLabs credentials');
+      const error = new Error('Missing ElevenLabs credentials');
+      console.error("❌ [ElevenLabs] CRITICAL ERROR:", error.message);
+      throw error;
     }
 
+    console.log("✅ [ElevenLabs] Credentials validated, fetching campaign data...");
+    
     const campaign = campaignId ? await storage.getCampaign(campaignId) : null;
 
     if (!campaign?.systemPersona) {
@@ -262,6 +270,9 @@ const setupElevenLabsConnection = async (
       }
     });
 
+    console.log("📡 [ElevenLabs] API Response status:", response.status);
+    console.log("📡 [ElevenLabs] API Response headers:", Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error("[ElevenLabs] API error details:", {
@@ -274,27 +285,30 @@ const setupElevenLabsConnection = async (
     }
 
     const data = await response.json() as { signed_url: string };
+    console.log("✅ [ElevenLabs] Raw API response:", JSON.stringify(data, null, 2));
+    
     if (!data.signed_url) {
       throw new Error('Invalid response from ElevenLabs API - missing signed_url');
     }
 
-    console.log("[ElevenLabs] Successfully got signed URL");
+    console.log("✅ [ElevenLabs] Successfully got signed URL");
 
-    console.log("[ElevenLabs] Connecting to WebSocket");
+    console.log("🔗 [ElevenLabs] Connecting to WebSocket:", data.signed_url);
     const newWs = new WebSocket(data.signed_url);
     elevenlabsWs = newWs;
 
     // Set up connection timeout as safeguard
     const connectionTimeout = setTimeout(() => {
       if (newWs.readyState !== WebSocket.OPEN) {
-        console.error("[ElevenLabs] Connection timeout - closing WebSocket");
+        console.error("⏰ [ElevenLabs] Connection timeout - WebSocket state:", newWs.readyState);
+        console.error("⏰ [ElevenLabs] Connection timeout - closing WebSocket");
         newWs.close();
       }
     }, 30000); // 30 second timeout
 
     newWs.on('open', () => {
       clearTimeout(connectionTimeout);
-      console.log("[ElevenLabs] WebSocket connected successfully, sending configuration");
+      console.log("🎉 [ElevenLabs] WebSocket connected successfully, sending configuration");
       
       const payload = {
         type: "conversation_initiation_client_data",
@@ -309,7 +323,12 @@ const setupElevenLabsConnection = async (
       console.log("[ElevenLabs] Dynamic variables:", payload.dynamic_variables);
       console.log("[ElevenLabs] Config override:", payload.conversation_config_override);
 
-      newWs.send(JSON.stringify(payload));
+      try {
+        newWs.send(JSON.stringify(payload));
+        console.log("✅ [ElevenLabs] Configuration payload sent successfully");
+      } catch (sendError) {
+        console.error("❌ [ElevenLabs] Error sending configuration:", sendError);
+      }
 
       if (streamSid) {
         activeConnections.set(streamSid, {
@@ -319,6 +338,7 @@ const setupElevenLabsConnection = async (
           callSid,
           campaignId
         });
+        console.log("✅ [ElevenLabs] Added connection to activeConnections with streamSid:", streamSid);
       }
     });
 
@@ -545,16 +565,19 @@ const setupElevenLabsConnection = async (
     });
 
     newWs.on('error', error => {
-      console.error("[ElevenLabs] WebSocket error:", error);
-      console.error("[ElevenLabs] Error details:", {
+      console.error("❌ [ElevenLabs] WebSocket error occurred:", error);
+      console.error("❌ [ElevenLabs] Error details:", {
         message: error.message,
         code: (error as any).code,
         type: (error as any).type,
-        target: (error as any).target
+        target: (error as any).target,
+        stack: error.stack
       });
+      console.error("❌ [ElevenLabs] WebSocket readyState at error:", newWs.readyState);
       
       // Close Twilio connection on ElevenLabs error
       if (ws.readyState === WebSocket.OPEN) {
+        console.log("🔌 [ElevenLabs] Closing Twilio WebSocket due to ElevenLabs error");
         ws.close();
       }
     });
@@ -608,8 +631,17 @@ const setupElevenLabsConnection = async (
 
 
   } catch (error) {
-    console.error("[ElevenLabs] Setup error:", error);
-    ws.close();
+    console.error("💥 [ElevenLabs] SETUP ERROR - Connection failed:", error);
+    console.error("💥 [ElevenLabs] Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : typeof error
+    });
+    console.error("💥 [ElevenLabs] Closing Twilio WebSocket due to setup failure");
+    
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
   }
 
   return elevenlabsWs;
@@ -1363,18 +1395,30 @@ export function setupWebSocketServer(httpServer: Server): void {
       console.log("[WebSocket] Retrieved connection params:", {
         key,
         hasParams: !!params,
-        params
+        params,
+        allStoredKeys: Array.from(connectionParams.keys())
       });
 
       if (!params) {
-        console.error("[WebSocket] No stored parameters found for campaignId:", campaignId);
+        console.error("❌ [WebSocket] No stored parameters found for campaignId:", campaignId);
+        console.error("❌ [WebSocket] Available parameter keys:", Array.from(connectionParams.keys()));
+        console.error("❌ [WebSocket] Looking for key:", key);
         ws.close();
         return;
       }
 
       const { isTestCall, firstName, leadId } = params;
       
+      console.log("🔍 [WebSocket] Lead setup - params analysis:", { 
+        isTestCall, 
+        firstName, 
+        leadId, 
+        leadIdType: typeof leadId,
+        campaignId 
+      });
+      
       if (isTestCall) {
+        console.log("✅ [WebSocket] Setting up TEST CALL lead");
         currentLead = {
           id: 0,
           campaignId,
@@ -1385,11 +1429,32 @@ export function setupWebSocketServer(httpServer: Server): void {
           callDuration: null,
           createdAt: new Date()
         };
+        console.log("✅ [WebSocket] Test lead created:", currentLead);
       } 
       else if (leadId) {
+        console.log("🔍 [WebSocket] Setting up CAMPAIGN CALL lead - searching for leadId:", leadId);
+        
         const leads = await storage.getLeadsByCampaign(campaignId);
-        const foundLead = leads.find(l => l.id === parseInt(leadId));
+        console.log("🔍 [WebSocket] Found leads for campaign:", {
+          campaignId,
+          totalLeads: leads.length,
+          leadIds: leads.map(l => ({ id: l.id, firstName: l.firstName }))
+        });
+        
+        const leadIdNum = parseInt(leadId);
+        console.log("🔍 [WebSocket] Looking for lead with ID:", leadIdNum, "from string:", leadId);
+        
+        const foundLead = leads.find(l => l.id === leadIdNum);
+        console.log("🔍 [WebSocket] Lead search result:", foundLead ? "FOUND" : "NOT FOUND");
+        
         if (foundLead) {
+          console.log("✅ [WebSocket] Found lead:", {
+            id: foundLead.id,
+            firstName: foundLead.firstName,
+            contactNo: foundLead.contactNo,
+            status: foundLead.status
+          });
+          
           currentLead = {
             id: foundLead.id,
             campaignId: foundLead.campaignId,
@@ -1400,16 +1465,42 @@ export function setupWebSocketServer(httpServer: Server): void {
             callDuration: foundLead.callDuration,
             createdAt: foundLead.createdAt || new Date()
           };
+          console.log("✅ [WebSocket] Campaign lead created:", currentLead);
+        } else {
+          console.error("❌ [WebSocket] Lead NOT FOUND - leadId:", leadId, "parsed as:", leadIdNum);
+          console.error("❌ [WebSocket] Available lead IDs:", leads.map(l => l.id));
         }
+      } else {
+        console.error("❌ [WebSocket] No leadId provided for campaign call");
       }
 
       if (!currentLead) {
-        console.error("[WebSocket] No lead data found", { isTestCall, leadId, campaignId });
-        ws.close();
-        return;
+        console.error("❌ [WebSocket] No lead data found", { isTestCall, leadId, campaignId });
+        
+        // CRITICAL FIX: If lead lookup failed but we have basic info, create a fallback lead
+        // This ensures campaign calls work the same way as test calls
+        if (!isTestCall && leadId && firstName) {
+          console.log("🔄 [WebSocket] FALLBACK: Creating temporary lead for campaign call");
+          currentLead = {
+            id: parseInt(leadId),
+            campaignId,
+            firstName: firstName || 'Unknown',
+            lastName: '',
+            contactNo: '',
+            status: 'calling',
+            callDuration: null,
+            createdAt: new Date()
+          };
+          console.log("✅ [WebSocket] Fallback lead created:", currentLead);
+        } else {
+          console.error("❌ [WebSocket] Cannot create fallback lead - missing required data");
+          ws.close();
+          return;
+        }
       }
 
-      connectionParams.delete(key);
+      // Don't delete connection params yet - wait until after successful ElevenLabs setup
+      // connectionParams.delete(key);
 
       ws.on('message', async (message: RawData) => {
         try {
@@ -1423,10 +1514,35 @@ export function setupWebSocketServer(httpServer: Server): void {
                 console.log(`[Twilio] Stream started - StreamSid: ${streamSid}, CallSid: ${callSid}, CampaignId: ${campaignId}, LeadId: ${leadId}, TestCall: ${isTestCall}`);
                 
                 if (currentLead && streamSid && callSid && campaignId !== null) {
-                  elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
+                  console.log("🔄 [Twilio] Initiating ElevenLabs connection setup...");
+                  console.log("🔄 [Twilio] Setup params:", { 
+                    leadName: currentLead.firstName,
+                    leadId: currentLead.id,
+                    streamSid, 
+                    callSid, 
+                    campaignId 
+                  });
+                  
+                  try {
+                    elevenlabsWs = await setupElevenLabsConnection(currentLead, ws, streamSid, callSid, campaignId);
+                    
+                    if (elevenlabsWs) {
+                      console.log("✅ [Twilio] ElevenLabs connection setup completed successfully");
+                      // Now it's safe to delete connection params since we're fully connected
+                      const key = `${campaignId}_params`;
+                      connectionParams.delete(key);
+                      console.log("🧹 [Twilio] Cleaned up connection params for key:", key);
+                    } else {
+                      console.error("❌ [Twilio] ElevenLabs connection setup returned null");
+                    }
+                  } catch (setupError) {
+                    console.error("💥 [Twilio] Error during ElevenLabs setup:", setupError);
+                    ws.close();
+                  }
                 } else {
-                  console.error("[Twilio] Missing required data for call setup", { 
+                  console.error("❌ [Twilio] Missing required data for call setup", { 
                     hasLead: !!currentLead, 
+                    leadData: currentLead ? { id: currentLead.id, firstName: currentLead.firstName } : null,
                     streamSid, 
                     callSid, 
                     campaignId 
