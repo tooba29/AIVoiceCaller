@@ -1502,9 +1502,18 @@ export function setupWebSocketServer(httpServer: Server): void {
       // Don't delete connection params yet - wait until after successful ElevenLabs setup
       // connectionParams.delete(key);
 
+      console.log("🎧 [WebSocket] Setting up message listeners for lead:", currentLead.firstName);
+
       ws.on('message', async (message: RawData) => {
         try {
           const msg = JSON.parse(message.toString()) as TwilioMessage;
+          
+          console.log("📨 [Twilio] Received WebSocket message:", {
+            event: msg.event,
+            hasStart: !!msg.start,
+            hasMedia: !!msg.media,
+            fullMessage: msg
+          });
           
           switch (msg.event) {
             case "start":
@@ -1574,19 +1583,31 @@ export function setupWebSocketServer(httpServer: Server): void {
             default:
               console.log(`[Twilio] Unhandled event: ${msg.event}`);
           }
-        } catch (error) {
-          console.error("[Twilio] Error processing message:", error);
-        }
+            } catch (error) {
+      console.error("❌ [Twilio] Error processing WebSocket message:", error);
+      console.error("❌ [Twilio] Raw message that caused error:", message.toString());
+    }
       });
 
-      ws.on('close', () => {
-        console.log("[Twilio] Client disconnected", { streamSid, callSid });
+      ws.on('close', (code, reason) => {
+        console.log("🔌 [Twilio] WebSocket closed:", { 
+          code, 
+          reason: reason?.toString(), 
+          streamSid, 
+          callSid,
+          hadElevenLabsConnection: !!elevenlabsWs,
+          leadData: currentLead ? { id: currentLead.id, firstName: currentLead.firstName } : null
+        });
         if (streamSid) {
           activeConnections.delete(streamSid);
         }
         if (elevenlabsWs?.readyState === WebSocket.OPEN) {
           elevenlabsWs.close();
         }
+      });
+
+      ws.on('error', (error) => {
+        console.error("❌ [Twilio] WebSocket error:", error);
       });
 
     } catch (error) {
