@@ -92,6 +92,7 @@ const connectionParams = new Map<string, {
   isTestCall: boolean;
   firstName: string;
   leadId?: string;
+  campaignId?: string;
 }>();
 
 // Helper function to update ElevenLabs agent with current knowledge base
@@ -826,15 +827,26 @@ export function registerCallRoutes(app: Express): void {
       const params = {
         isTestCall,
         firstName: firstName?.toString() || 'there',
-        leadId: leadId?.toString()
+        leadId: leadId?.toString(),
+        campaignId: campaignId?.toString() // Store campaignId in params for backup
       };
       
       const key = `${campaignId}_params`;
       connectionParams.set(key, params);
       
+      // Also store by CallSid as backup for WebSocket to find
+      const callSid = req.body.CallSid;
+      if (callSid) {
+        const callSidKey = `${callSid}_params`;
+        connectionParams.set(callSidKey, params);
+        console.log("[TwiML] Also stored parameters with CallSid key:", callSidKey);
+      }
+      
       console.log("[TwiML] Stored connection parameters:", {
         key,
         params,
+        campaignId,
+        callSid,
         allStoredParams: Array.from(connectionParams.entries())
       });
 
@@ -1234,16 +1246,32 @@ export function setupWebSocketServer(httpServer: Server): void {
       }
 
       const key = `${campaignId}_params`;
-      const params = connectionParams.get(key);
+      let params = connectionParams.get(key);
+      
+      // Fallback: try to find params by any key that contains this campaignId
+      if (!params) {
+        console.log("[WebSocket] Primary key not found, searching for alternative keys...");
+        for (const [storedKey, storedParams] of connectionParams.entries()) {
+          if (storedParams.campaignId === campaignId?.toString()) {
+            params = storedParams;
+            console.log(`[WebSocket] Found parameters using alternative key: ${storedKey}`);
+            break;
+          }
+        }
+      }
       
       console.log("[WebSocket] Retrieved connection params:", {
         key,
+        campaignId,
         hasParams: !!params,
-        params
+        params,
+        allStoredParams: Array.from(connectionParams.entries())
       });
 
       if (!params) {
         console.error("[WebSocket] No stored parameters found for campaignId:", campaignId);
+        console.error("[WebSocket] Available parameter keys:", Array.from(connectionParams.keys()));
+        console.error("[WebSocket] Available parameters:", Array.from(connectionParams.entries()));
         ws.close();
         return;
       }
@@ -1285,7 +1313,16 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
+      // Clean up both primary and backup parameter keys
       connectionParams.delete(key);
+      
+      // Also clean up any CallSid-based keys for this campaign
+      for (const [storedKey, storedParams] of connectionParams.entries()) {
+        if (storedParams.campaignId === campaignId?.toString()) {
+          connectionParams.delete(storedKey);
+          console.log(`[WebSocket] Cleaned up alternative parameter key: ${storedKey}`);
+        }
+      }
 
       ws.on('message', async (message: RawData) => {
         try {
