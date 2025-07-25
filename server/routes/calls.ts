@@ -1237,15 +1237,15 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
-      // 🔥 CRITICAL FIX: Look for parameters using multiple possible key formats
-      // Try callSid-based keys first, then fallback to campaignId-based keys
+      // 🔥 FIXED: Look for parameters using the new CallSid-based key format
+      // Since TwiML now stores parameters with unique CallSid keys, search for them
       let params: any = null;
       let foundKey: string | null = null;
       
-      // Get all keys that might match this campaign
+      // Get all keys and find any that contain this campaignId
       const allKeys = Array.from(connectionParams.keys());
       const campaignKeys = allKeys.filter(k => 
-        k.includes(`${campaignId}_`) || k.endsWith('_params')
+        k.includes(`${campaignId}_`) || k.startsWith(`CA`) && k.endsWith('_params')
       );
       
       console.log("[WebSocket] Looking for connection params:", {
@@ -1255,7 +1255,7 @@ export function setupWebSocketServer(httpServer: Server): void {
         totalParams: connectionParams.size
       });
       
-      // Try to find the most recent parameters for this campaign
+      // Find the most recent parameters for this campaign
       if (campaignKeys.length > 0) {
         foundKey = campaignKeys[campaignKeys.length - 1]; // Get the most recent
         params = connectionParams.get(foundKey);
