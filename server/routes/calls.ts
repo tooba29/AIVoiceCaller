@@ -831,22 +831,30 @@ export function registerCallRoutes(app: Express): void {
         campaignId: campaignId?.toString() // Store campaignId in params for backup
       };
       
-      const key = `${campaignId}_params`;
-      connectionParams.set(key, params);
+      // ALWAYS use campaignId for the primary key - force string conversion to prevent any type issues
+      const primaryKey = `${String(campaignId)}_params`;
+      console.log("[TwiML] DEBUG - Creating primary key:", { campaignId, primaryKey });
+      
+      // Store with primary key (campaignId)
+      connectionParams.set(primaryKey, params);
       
       // Also store by CallSid as backup for WebSocket to find
       const callSid = req.body.CallSid;
       if (callSid) {
         const callSidKey = `${callSid}_params`;
         connectionParams.set(callSidKey, params);
-        console.log("[TwiML] Also stored parameters with CallSid key:", callSidKey);
+        console.log("[TwiML] BACKUP - Also stored parameters with CallSid key:", callSidKey);
       }
       
-      console.log("[TwiML] Stored connection parameters:", {
-        key,
-        params,
+      // CRITICAL DEBUG - Check what's actually stored
+      console.log("[TwiML] FINAL STORAGE DEBUG:", {
+        primaryKey,
+        primaryKeyType: typeof primaryKey,
         campaignId,
+        campaignIdType: typeof campaignId,
         callSid,
+        storedWithPrimaryKey: connectionParams.has(primaryKey),
+        allStoredKeys: Array.from(connectionParams.keys()),
         allStoredParams: Array.from(connectionParams.entries())
       });
 
@@ -1245,8 +1253,12 @@ export function setupWebSocketServer(httpServer: Server): void {
         return;
       }
 
-      const key = `${campaignId}_params`;
-      let params = connectionParams.get(key);
+      // Use same key format as TwiML endpoint
+      const primaryKey = `${String(campaignId)}_params`;
+      console.log("[WebSocket] DEBUG - Looking for primary key:", { campaignId, primaryKey });
+      
+      let params = connectionParams.get(primaryKey);
+      let foundKey = primaryKey;
       
       // Fallback: try to find params by any key that contains this campaignId
       if (!params) {
@@ -1254,24 +1266,31 @@ export function setupWebSocketServer(httpServer: Server): void {
         for (const [storedKey, storedParams] of connectionParams.entries()) {
           if (storedParams.campaignId === campaignId?.toString()) {
             params = storedParams;
-            console.log(`[WebSocket] Found parameters using alternative key: ${storedKey}`);
+            foundKey = storedKey;
+            console.log(`[WebSocket] FOUND - Using alternative key: ${storedKey}`);
             break;
           }
         }
       }
       
-      console.log("[WebSocket] Retrieved connection params:", {
-        key,
+      // CRITICAL DEBUG - Show exactly what we found
+      console.log("[WebSocket] RETRIEVAL DEBUG:", {
+        primaryKey,
+        primaryKeyType: typeof primaryKey,
         campaignId,
+        campaignIdType: typeof campaignId,
         hasParams: !!params,
+        foundKey,
         params,
+        availableKeys: Array.from(connectionParams.keys()),
         allStoredParams: Array.from(connectionParams.entries())
       });
 
       if (!params) {
-        console.error("[WebSocket] No stored parameters found for campaignId:", campaignId);
-        console.error("[WebSocket] Available parameter keys:", Array.from(connectionParams.keys()));
-        console.error("[WebSocket] Available parameters:", Array.from(connectionParams.entries()));
+        console.error("[WebSocket] ❌ CRITICAL - No stored parameters found for campaignId:", campaignId);
+        console.error("[WebSocket] ❌ Primary key tried:", primaryKey);
+        console.error("[WebSocket] ❌ Available parameter keys:", Array.from(connectionParams.keys()));
+        console.error("[WebSocket] ❌ Available parameters:", Array.from(connectionParams.entries()));
         ws.close();
         return;
       }
@@ -1314,7 +1333,7 @@ export function setupWebSocketServer(httpServer: Server): void {
       }
 
       // Clean up both primary and backup parameter keys
-      connectionParams.delete(key);
+      connectionParams.delete(primaryKey);
       
       // Also clean up any CallSid-based keys for this campaign
       for (const [storedKey, storedParams] of connectionParams.entries()) {
