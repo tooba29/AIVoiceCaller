@@ -272,7 +272,7 @@ const setupElevenLabsConnection = async (
         }
       };
 
-      console.log("[ElevenLabs] Sending payload:", JSON.stringify(payload, null, 2));
+      //console.log("[ElevenLabs] Sending payload:", JSON.stringify(payload, null, 2));
       console.log("[ElevenLabs] Payload type:", typeof payload.type);
       console.log("[ElevenLabs] Dynamic variables:", payload.dynamic_variables);
       console.log("[ElevenLabs] Config override:", payload.conversation_config_override);
@@ -1346,15 +1346,15 @@ export function setupWebSocketServer(httpServer: Server): void {
       ws.on('message', async (message: RawData) => {
         try {
           const rawMessage = message.toString();
-          console.log("[Twilio] 📨 RAW MESSAGE RECEIVED:", rawMessage);
+          //console.log("[Twilio] 📨 RAW MESSAGE RECEIVED:", rawMessage);
           
           const msg = JSON.parse(rawMessage) as TwilioMessage;
-          console.log("[Twilio] 📋 PARSED MESSAGE:", {
-            event: msg.event,
-            hasStart: !!msg.start,
-            hasMedia: !!msg.media,
-            fullMessage: msg
-          });
+          // console.log("[Twilio] 📋 PARSED MESSAGE:", {
+          //   event: msg.event,
+          //   hasStart: !!msg.start,
+          //   hasMedia: !!msg.media,
+          //   fullMessage: msg
+          // });
           
           switch (msg.event) {
             case "start":
