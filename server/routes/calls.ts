@@ -1490,7 +1490,8 @@ export function registerCallRoutes(app: Express): void {
             return true;
           }
         } catch (error) {
-          console.log(`[Webhook Validation] Variation ${i + 1} failed:`, error.message);
+          const msg = error instanceof Error ? error.message : String(error);
+          console.log(`[Webhook Validation] Variation ${i + 1} failed:`, msg);
         }
       }
 
@@ -1499,7 +1500,8 @@ export function registerCallRoutes(app: Express): void {
 
       return false;
     } catch (error) {
-      console.error('[Webhook Validation] ❌ Validation error:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('[Webhook Validation] ❌ Validation error:', msg);
       return false;
     }
   }
