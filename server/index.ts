@@ -63,21 +63,24 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-// Body parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Body parsing middleware (increased limit for ElevenLabs webhook payloads)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Session configuration
 const MySQLStore = MySQLStoreFactory(session as any);
 
-// Create a MySQL session store
+// Create a MySQL session store using individual environment variables
 const sessionStore = new MySQLStore({
-  host: process.env.DATABASE_HOST || 'gator3166.hostgator.com',
+  host: process.env.DATABASE_HOST!,
   port: parseInt(process.env.DATABASE_PORT || '3306'),
-  user: process.env.DATABASE_USER || 'mowaisac_scroot',
-  password: process.env.DATABASE_PASSWORD || '^};t2v1Y+=~v',
-  database: process.env.DATABASE_NAME || 'mowaisac_salescalling',
+  user: process.env.DATABASE_USER!,
+  password: process.env.DATABASE_PASSWORD!,
+  database: process.env.DATABASE_NAME!,
   createDatabaseTable: true,
+  // Session cleanup settings
+  checkExpirationInterval: 900000, // 15 minutes
+  expiration: 86400000, // 24 hours
   schema: {
     tableName: 'user_sessions',
     columnNames: {
@@ -87,6 +90,14 @@ const sessionStore = new MySQLStore({
     }
   }
 });
+
+// Add error handling for session store
+try {
+  console.log('MySQL session store initialized');
+} catch (error) {
+  console.error('MySQL session store error:', error);
+  // Don't crash the app on session store errors
+}
 
 app.use(session({
   store: sessionStore,

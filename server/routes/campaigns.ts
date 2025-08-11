@@ -311,22 +311,54 @@ export function registerCampaignRoutes(app: Express): void {
       const leads = await storage.getLeadsByCampaign(campaignId);
       const callLogs = await storage.getCallLogsByCampaign(campaignId);
       
-      // Calculate stats
+      // Calculate detailed stats (consistent with main campaigns endpoint)
       const totalLeads = leads.length;
-      const completedLeads = leads.filter(l => l.status === 'completed').length;
-      const failedLeads = leads.filter(l => l.status === 'failed').length;
-      const pendingLeads = leads.filter(l => l.status === 'pending').length;
+      const completedLeads = leads.filter(l => l.status === 'completed');
+      const failedLeads = leads.filter(l => l.status === 'failed');
+      const pendingLeads = leads.filter(l => l.status === 'pending');
+      const callingLeads = leads.filter(l => l.status === 'calling');
       
-      // Include stats in the response
+      // Calculate call statistics
+      const completedCalls = completedLeads.length + failedLeads.length;
+      const successfulCalls = completedLeads.length;
+      const failedCalls = failedLeads.length;
+      
+      // Calculate call logs with conversation data
+      const callLogsWithConversations = callLogs.filter(log => log.elevenLabsConversationId);
+      const averageDuration = callLogsWithConversations.length > 0
+        ? Math.round(callLogsWithConversations.reduce((sum, log) => sum + (log.duration || 0), 0) / callLogsWithConversations.length)
+        : 0;
+      
+      console.log(`[Campaign Details] Stats for campaign ${campaignId}:`, {
+        totalLeads,
+        completed: completedLeads.length,
+        failed: failedLeads.length,
+        pending: pendingLeads.length,
+        calling: callingLeads.length,
+        successfulCalls,
+        callLogsWithConversations: callLogsWithConversations.length
+      });
+      
+      // Include comprehensive stats in the response
       res.json({
-        campaign,
+        campaign: {
+          ...campaign,
+          // Add real-time calculated stats to campaign object
+          totalLeads,
+          completedCalls,
+          successfulCalls,
+          failedCalls
+        },
         leads,
         callLogs,
         stats: {
           totalLeads,
-          completed: completedLeads,
-          failed: failedLeads,
-          pending: pendingLeads
+          completed: completedLeads.length,
+          failed: failedLeads.length,
+          pending: pendingLeads.length,
+          calling: callingLeads.length,
+          averageDuration,
+          conversationsWithAudio: callLogsWithConversations.length
         }
       });
     } catch (error) {

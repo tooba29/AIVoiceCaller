@@ -51,6 +51,7 @@ export interface Campaign {
   pendingLeads?: number;
   callingLeads?: number;
   averageDuration?: number;
+  batchJobId?: string;
   createdAt: string;
 }
 
@@ -85,6 +86,9 @@ export interface CampaignDetailsResponse {
     completed: number;
     failed: number;
     pending: number;
+    calling: number;
+    averageDuration?: number;
+    conversationsWithAudio?: number;
   };
 }
 
@@ -368,7 +372,7 @@ export const api = {
     }
   },
 
-  // Get campaign details with conversations
+  // Get campaign details with conversations and real-time stats
   getCampaignDetails: async (campaignId: number): Promise<CampaignDetailsResponse> => {
     try {
       const response = await fetch(`${BASE_URL}/api/campaigns/${campaignId}/details`, {
@@ -387,6 +391,28 @@ export const api = {
       return response.json();
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to fetch campaign details');
+    }
+  },
+
+  // Get conversation details (transcription + metadata)
+  getConversationDetails: async (conversationId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/conversations/${conversationId}/details`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(errorData.error || 'Failed to fetch conversation details');
+      }
+
+      return response.json();
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Failed to fetch conversation details');
     }
   },
 

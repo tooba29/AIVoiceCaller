@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -25,11 +27,15 @@ import {
   Users,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Eye,
+  MessageSquare
 } from "lucide-react";
 import { api, type CampaignDetailsResponse } from "@/lib/api";
 import Sidebar from "@/components/sidebar";
 import { useToast } from "@/hooks/use-toast";
+import LiveBatchStats from "@/components/live-batch-stats";
 
 export default function CampaignDetails() {
   const { t } = useTranslation();
@@ -37,6 +43,10 @@ export default function CampaignDetails() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [conversationDetails, setConversationDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { data: campaignData, isLoading } = useQuery<CampaignDetailsResponse>({
@@ -59,7 +69,16 @@ export default function CampaignDetails() {
       const leadIds = new Set(leads.map((lead: any) => lead.id));
       const testCalls = callLogs.filter((log: any) => !log.leadId || !leadIds.has(log.leadId));
       const campaignCalls = callLogs.filter((log: any) => log.leadId && leadIds.has(log.leadId));
-      const conversations = callLogs.filter((log: any) => log.elevenLabsConversationId);
+      const baseConversations = callLogs.filter((log: any) => log.elevenLabsConversationId);
+      const conversations = baseConversations.map((c: any) => {
+        const live = liveConversations?.find((lc: any) => lc.conversationId === c.elevenLabsConversationId || lc.phoneNumber === c.phoneNumber);
+        if (!live) return c;
+        return {
+          ...c,
+          status: live.status || c.status,
+          duration: typeof live.duration === 'number' ? live.duration : c.duration,
+        };
+      });
       
       console.log(`[Campaign Details UI] ✅ Received campaign data:`, {
         campaignName: campaign?.name,
@@ -219,7 +238,7 @@ export default function CampaignDetails() {
   };
 
   const formatDuration = (seconds: number | null) => {
-    if (!seconds) return 'N/A';
+    if (seconds === null || seconds === undefined) return 'N/A';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -227,6 +246,193 @@ export default function CampaignDetails() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
+  };
+
+  // Fetch live batch status from ElevenLabs API
+  const fetchLiveBatchStatus = async () => {
+    if (!id) return null;
+    
+    try {
+      const response = await fetch(`/api/campaigns/${id}/batch-status`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      } else {
+        console.warn('Could not fetch live batch status:', response.statusText);
+        return null;
+      }
+    } catch (error) {
+      console.warn('Error fetching live batch status:', error);
+      return null;
+    }
+  };
+
+  // Fetch live conversation data
+  const fetchLiveConversations = async () => {
+    if (!id) return null;
+    
+    try {
+      const response = await fetch(`/api/campaigns/${id}/live-conversations`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      } else {
+        console.warn('Could not fetch live conversations:', response.statusText);
+        return null;
+      }
+    } catch (error) {
+      console.warn('Error fetching live conversations:', error);
+      return null;
+    }
+  };
+
+  // Live overlay for conversations in table
+  const [liveConversations, setLiveConversations] = useState<any[] | null>(null);
+  const [livePolling, setLivePolling] = useState<boolean>(true);
+
+  useEffect(() => {
+    let interval: any;
+    const load = async () => {
+      const data = await fetchLiveConversations();
+      if (data?.conversations) setLiveConversations(data.conversations);
+    };
+    load();
+    if (livePolling) {
+      interval = setInterval(load, 10000);
+    }
+    return () => interval && clearInterval(interval);
+  }, [id, livePolling]);
+
+  const refreshBatchStatus = async () => {
+    if (!id) return;
+    
+    setIsRefreshing(true);
+    try {
+      // First try to get live data from ElevenLabs
+      const liveData = await fetchLiveBatchStatus();
+      
+      if (liveData) {
+        toast({
+          title: "Live status updated",
+          description: `Campaign data refreshed with live ElevenLabs data. ${liveData.liveStats?.total || 0} calls tracked.`,
+        });
+        console.log('[Campaign Details] Live batch data:', liveData);
+      } else {
+        // Fallback to refresh-batch endpoint
+        const response = await fetch(`/api/campaigns/${id}/refresh-batch`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          toast({
+            title: "Batch status refreshed",
+            description: "Campaign data has been updated with the latest information.",
+          });
+        } else {
+          throw new Error('Failed to refresh batch status');
+        }
+      }
+      
+      // The query will automatically refetch due to the refetchInterval
+    } catch (error) {
+      toast({
+        title: "Refresh failed",
+        description: error instanceof Error ? error.message : "Failed to refresh batch status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Refresh conversation durations
+  const refreshDurations = async () => {
+    if (!id) return;
+    
+    setIsRefreshing(true);
+    try {
+      const response = await fetch(`/api/campaigns/${id}/refresh-durations`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: "Durations updated",
+          description: `${result.message}. Checked ${result.totalChecked} conversations.`,
+        });
+        // The query will automatically refetch due to the refetchInterval
+      } else {
+        throw new Error('Failed to refresh durations');
+      }
+    } catch (error) {
+      toast({
+        title: "Duration refresh failed",
+        description: error instanceof Error ? error.message : "Failed to refresh conversation durations",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const openConversationDetails = async (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    setLoadingDetails(true);
+    try {
+      const details = await api.getConversationDetails(conversationId);
+      setConversationDetails(details);
+
+    } catch (error) {
+      console.error('[Conversation Details] Error:', error);
+      toast({
+        title: "Error loading conversation",
+        description: error instanceof Error ? error.message : "Failed to load conversation details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const closeConversationDetails = () => {
+    setSelectedConversationId(null);
+    setConversationDetails(null);
+    // Stop any playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setPlayingAudio(null);
+    }
+  };
+
+  const formatTranscription = (conversation: any) => {
+    if (!conversation?.transcript) {
+      return "Transcription not available for this call";
+    }
+    
+    // Handle different transcript formats
+    if (Array.isArray(conversation.transcript)) {
+      return conversation.transcript.map((item: any, index: number) => (
+        <div key={index} className="mb-2">
+          <span className="font-medium text-sm text-muted-foreground">
+            {item.speaker || item.role || 'Speaker'}: 
+          </span>
+          <span className="ml-2">{item.text || item.content || item.message}</span>
+        </div>
+      ));
+    } else if (typeof conversation.transcript === 'string') {
+      return conversation.transcript;
+    } else {
+      return "Transcription format not supported";
+    }
   };
 
   if (isLoading) {
@@ -258,10 +464,27 @@ export default function CampaignDetails() {
     );
   }
 
-  const { campaign, leads = [], callLogs = [], stats = { totalLeads: 0, completed: 0, failed: 0, pending: 0 } } = campaignData;
+  const { campaign, leads = [], callLogs = [], stats = { totalLeads: 0, completed: 0, failed: 0, pending: 0, calling: 0 } } = campaignData;
   
   // Get conversations (call logs with conversation IDs)
-  const conversations = callLogs.filter((log: any) => log.elevenLabsConversationId);
+  const baseConversations = callLogs.filter((log: any) => log.elevenLabsConversationId);
+  const conversations = baseConversations.map((c: any) => {
+    const live = liveConversations?.find((lc: any) => lc.conversationId === c.elevenLabsConversationId || lc.phoneNumber === c.phoneNumber);
+    if (!live) return c;
+    return {
+      ...c,
+      status: live.status || c.status,
+      duration: typeof live.duration === 'number' ? live.duration : c.duration,
+    };
+  });
+  
+  // Debug: Log duration data
+  console.log('[Campaign Details] Conversations with durations:', conversations.map(c => ({
+    id: c.id,
+    phoneNumber: c.phoneNumber,
+    duration: c.duration,
+    durationType: typeof c.duration
+  })));
   
   // Get test calls (calls that don't have corresponding leads or have null leadId)
   const leadIds = new Set(leads.map((lead: any) => lead.id));
@@ -295,9 +518,20 @@ export default function CampaignDetails() {
                   <p className="text-muted-foreground">{t('campaignDetails.title')}</p>
                 </div>
             </div>
-            <Badge className={getStatusColor(campaign.status)}>
-              {campaign.status}
-            </Badge>
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshBatchStatus}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh Status'}
+              </Button>
+              <Badge className={getStatusColor(campaign.status)}>
+                {campaign.status}
+              </Badge>
+            </div>
           </div>
         </div>
 
@@ -305,7 +539,7 @@ export default function CampaignDetails() {
         <div className="flex-1 overflow-auto p-6 space-y-6">
           
           {/* Campaign Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center space-x-2">
@@ -325,6 +559,18 @@ export default function CampaignDetails() {
                   <div>
                     <p className="text-sm text-muted-foreground">{t('campaigns.completed')}</p>
                     <p className="text-2xl font-bold text-foreground">{stats?.completed || 0}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2">
+                  <Phone className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t('campaigns.calling')}</p>
+                    <p className="text-2xl font-bold text-foreground">{stats?.calling || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -374,6 +620,13 @@ export default function CampaignDetails() {
             </CardContent>
           </Card>
 
+          {/* Live Batch Statistics */}
+          {campaign?.batchJobId && (
+            <div className="space-y-4">
+              <LiveBatchStats campaignId={id!} />
+            </div>
+          )}
+
           {/* Conversations */}
           <Card>
             <CardHeader>
@@ -393,6 +646,7 @@ export default function CampaignDetails() {
                         <TableHead>{t('campaignDetails.duration')}</TableHead>
                         <TableHead>{t('campaignDetails.callDate')}</TableHead>
                         <TableHead>{t('campaignDetails.audio')}</TableHead>
+                        <TableHead>{t('campaignDetails.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                   <TableBody>
@@ -415,28 +669,25 @@ export default function CampaignDetails() {
                           <TableCell>{formatDuration(conversation.duration)}</TableCell>
                           <TableCell>{formatDate(conversation.createdAt)}</TableCell>
                           <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handlePlayAudio(conversation.elevenLabsConversationId!)}
-                                disabled={!conversation.elevenLabsConversationId}
-                              >
-                                {playingAudio === conversation.elevenLabsConversationId ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadAudio(conversation.elevenLabsConversationId!)}
-                                disabled={!conversation.elevenLabsConversationId}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadAudio(conversation.elevenLabsConversationId!)}
+                              disabled={!conversation.elevenLabsConversationId}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openConversationDetails(conversation.elevenLabsConversationId!)}
+                              disabled={!conversation.elevenLabsConversationId}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Details
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -605,6 +856,137 @@ export default function CampaignDetails() {
           </Card>
         </div>
       </div>
+
+      {/* Conversation Details Drawer */}
+      <Sheet open={!!selectedConversationId} onOpenChange={(open) => {
+        if (!open) closeConversationDetails();
+      }}>
+        <SheetContent className="w-[600px] sm:w-[800px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center space-x-2">
+              <MessageSquare className="h-5 w-5" />
+              <span>Conversation Details</span>
+            </SheetTitle>
+            <SheetDescription>
+              {conversationDetails?.lead ? 
+                `${conversationDetails.lead.firstName} ${conversationDetails.lead.lastName} - ${conversationDetails.lead.contactNo}` :
+                'Loading conversation details...'
+              }
+            </SheetDescription>
+          </SheetHeader>
+
+          {loadingDetails ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : conversationDetails ? (
+            <div className="mt-6 space-y-6">
+              {/* Call Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Call Information</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-muted-foreground">Status:</span>
+                    <div className="flex items-center space-x-2 mt-1">
+                      {getStatusIcon(conversationDetails.callLog.status)}
+                      <Badge className={getStatusColor(conversationDetails.callLog.status)}>
+                        {conversationDetails.callLog.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-muted-foreground">Duration:</span>
+                    <p className="mt-1">{formatDuration(conversationDetails.callLog.duration)}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-muted-foreground">Phone Number:</span>
+                    <p className="mt-1">{conversationDetails.callLog.phoneNumber}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-muted-foreground">Call Date:</span>
+                    <p className="mt-1">{formatDate(conversationDetails.callLog.createdAt)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Audio Player */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Audio Recording</h3>
+                <div className="flex items-center space-x-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePlayAudio(conversationDetails.conversationId)}
+                  >
+                    {playingAudio === conversationDetails.conversationId ? (
+                      <>
+                        <Pause className="h-4 w-4 mr-2" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Play Audio
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownloadAudio(conversationDetails.conversationId)}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Transcription */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Conversation Transcription</h3>
+                <div className="bg-muted/50 rounded-lg p-4 min-h-[200px] max-h-[400px] overflow-y-auto">
+                  {conversationDetails.conversation ? (
+                    <div className="space-y-2 text-sm">
+                      {formatTranscription(conversationDetails.conversation)}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-32 text-muted-foreground">
+                      <div className="text-center">
+                        <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No transcription available for this call</p>
+                                                 <div className="text-xs mt-3 space-y-2">
+                           <div className="text-green-600 bg-green-50 p-2 rounded">
+                             <p className="font-medium">🎉 Transcription System Ready!</p>
+                             <p><strong>Test calls:</strong> Now use ElevenLabs + automatic transcriptions</p>
+                             <p><strong>Campaigns:</strong> Use ElevenLabs batch calling + transcriptions</p>
+                           </div>
+                           <div className="text-blue-600 bg-blue-50 p-2 rounded">
+                             <p className="font-medium">💡 How it works:</p>
+                             <p>1. Make a new test call or run a campaign</p>
+                             <p>2. ElevenLabs processes the conversation</p>
+                             <p>3. Transcriptions appear here automatically via webhooks</p>
+                           </div>
+                         </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center text-muted-foreground">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Failed to load conversation details</p>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 } 

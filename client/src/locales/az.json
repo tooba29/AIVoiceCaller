@@ -148,6 +148,7 @@
     "successRate": "Uğur Dərəcəsi",
     "completed": "Tamamlandı",
     "failed": "Uğursuz",
+    "calling": "Zəng edir",
     "pending": "Gözləyir",
     "createdOn": "Yaradılma Tarixi",
     "lastActivity": "Son Aktivlik"
@@ -158,6 +159,7 @@
     "campaignOverview": "Kampaniya Ümumi Baxış",
     "callLogs": "Zəng Qeydləri",
     "testCalls": "Test Zəngləri",
+    "actions": "Əməliyyatlar",
     "campaignCalls": "Kampaniya Zəngləri",
     "conversations": "Söhbətlər",
     "lead": "Müştəri",
@@ -178,7 +180,11 @@
     "campaignCallLogs": "Kampaniya Zəng Qeydləri",
     "testBadge": "TEST",
     "minutes": "dəqiqə",
-    "seconds": "saniyə"
+    "seconds": "saniyə",
+    "autoRefreshOn": "Avto-yeniləmə AÇIQ",
+    "autoRefreshOff": "Avto-yeniləmə BAĞLI",
+    "recentCallStatus": "Son Zəng Statusu",
+    "liveStatusUpdates": "Canlı status yeniləmələri"
   },
   "analytics": {
     "title": "Analitika",

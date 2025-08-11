@@ -145,8 +145,18 @@ class DatabaseStorage implements IStorage {
   }
 
   async updateCampaign(id: number, updates: Partial<Campaign>): Promise<Campaign | undefined> {
-    await db.update(campaigns).set(updates).where(eq(campaigns.id, id));
+    console.log(`[Storage] Updating campaign ${id} with:`, updates);
+    
+    const result = await db.update(campaigns).set(updates).where(eq(campaigns.id, id));
+    console.log(`[Storage] Update result:`, result);
+    
     const [updatedCampaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    console.log(`[Storage] Updated campaign:`, {
+      id: updatedCampaign?.id,
+      status: updatedCampaign?.status,
+      batchJobId: updatedCampaign?.batchJobId
+    });
+    
     return updatedCampaign;
   }
 

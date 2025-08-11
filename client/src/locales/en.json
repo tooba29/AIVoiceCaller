@@ -148,6 +148,7 @@
     "successRate": "Success Rate",
     "completed": "Completed",
     "failed": "Failed",
+    "calling": "Calling",
     "pending": "Pending",
     "createdOn": "Created On",
     "lastActivity": "Last Activity"
@@ -158,6 +159,7 @@
     "campaignOverview": "Campaign Overview",
     "callLogs": "Call Logs",
     "testCalls": "Test Calls",
+    "actions": "Actions",
     "campaignCalls": "Campaign Calls",
     "conversations": "Conversations",
     "lead": "Lead",
@@ -178,7 +180,11 @@
     "campaignCallLogs": "Campaign Call Logs",
     "testBadge": "TEST",
     "minutes": "minutes",
-    "seconds": "seconds"
+    "seconds": "seconds",
+    "autoRefreshOn": "Auto-refresh ON",
+    "autoRefreshOff": "Auto-refresh OFF",
+    "recentCallStatus": "Recent Call Status",
+    "liveStatusUpdates": "Live status updates"
   },
   "analytics": {
     "title": "Analytics",

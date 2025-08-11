@@ -35,6 +35,7 @@ export const campaigns = mysqlTable("campaigns", {
   pausedAt: text("paused_at"),
   resumedAt: text("resumed_at"),
   lastProcessedLeadId: int("last_processed_lead_id"),
+  batchJobId: text("batch_job_id"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
@@ -58,6 +59,7 @@ export const callLogs = mysqlTable("call_logs", {
   duration: int("duration"),
   twilioCallSid: text("twilio_call_sid"),
   elevenLabsConversationId: text("elevenlabs_conversation_id"),
+  transcription: text("transcription"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
