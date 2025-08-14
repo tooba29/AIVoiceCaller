@@ -498,20 +498,26 @@ const setupElevenLabsConnection = async (
                   );
                   
                   if (callLog && callLog.leadId) {
-                    // Determine if call was successful based on duration
+                    // Determine status based on duration and Twilio outcome
                     const callDuration = callLog.duration || 0;
-                    const isSuccessful = callDuration > 3; // Consider calls > 3 seconds as successful
+                    const isSuccessful = callDuration > 3;
                     
-                    const newLeadStatus = isSuccessful ? 'completed' : 'failed';
-                    const newCallStatus = isSuccessful ? 'completed' : 'failed';
+                    let newLeadStatus = isSuccessful ? 'completed' : 'failed';
+                    let newCallStatus: string = isSuccessful ? 'completed' : 'failed';
                     
-                    console.log(`[ElevenLabs] Updating lead ${callLog.leadId} status to: ${newLeadStatus} (duration: ${callDuration}s)`);
+                    const lower = (callLog.status || '').toLowerCase();
+                    if (['no-answer','busy','error','failed','cancelled','canceled'].includes(lower)) {
+                      newLeadStatus = 'failed';
+                      newCallStatus = lower;
+                    }
+                    
+                    console.log(`[ElevenLabs] Updating lead ${callLog.leadId} status to: ${newLeadStatus} (duration: ${callDuration}s, rawStatus: ${callLog.status})`);
                     
                     // Update lead status
                     await storage.updateLead(callLog.leadId, { status: newLeadStatus });
                     
                     // Update call log status if not already updated
-                    if (callLog.status !== newCallStatus) {
+                    if ((callLog.status || '').toLowerCase() !== newCallStatus) {
                       await storage.updateCallLog(callLog.id, { status: newCallStatus });
                     }
                     
@@ -1235,8 +1241,8 @@ export function registerCallRoutes(app: Express): void {
                   text: t.text || t.message || ''
                 }));
               }
-              // Update duration if present
-              const durationSec = data.duration_seconds || data.duration || null;
+              // Update duration if present (check metadata fallback)
+              const durationSec = data.duration_seconds || data.duration || data?.metadata?.call_duration_secs || null;
               const updates: any = {};
               if (transcriptOut) {
                 updates.transcription = JSON.stringify(transcriptOut);
@@ -1875,17 +1881,32 @@ async function handleTranscriptionWebhook(data: any) {
     console.log('[Transcription Webhook] ✅ Found call log:', callLog.id, 'for conversation:', conversationId);
 
     // Determine final status
-    let finalStatus = callLog.status;
-    if (status === 'done' || status === 'completed') {
+    let finalStatus = (callLog.status || '').toLowerCase();
+    const normalized = (status || '').toLowerCase();
+    if (['done','completed'].includes(normalized)) {
       finalStatus = 'completed';
-    } else if (status === 'failed' || status === 'error') {
+    } else if (['failed','error'].includes(normalized)) {
       finalStatus = 'failed';
+    } else if (['no-answer','no_answer','noanswer'].includes(normalized)) {
+      finalStatus = 'no-answer';
+    } else if (['busy'].includes(normalized)) {
+      finalStatus = 'busy';
+    } else if (['cancelled','canceled'].includes(normalized)) {
+      finalStatus = 'cancelled';
+    } else if (['answered_briefly','brief','short'].includes(normalized)) {
+      finalStatus = 'answered_briefly';
     }
 
     // Update the call log with transcription data
     const updateData: any = {
       status: finalStatus
     };
+
+    // Try to capture duration from webhook if present
+    const durationSec = (data.duration_seconds ?? data.duration ?? data.call_duration_seconds ?? data.total_duration ?? null);
+    if (typeof durationSec === 'number' && durationSec >= 0) {
+      updateData.duration = durationSec;
+    }
 
     if (transcript) {
       updateData.transcription = JSON.stringify(transcript);
@@ -2010,9 +2031,10 @@ async function updateCampaignStatistics(campaignId: number) {
       callLogsWithConversation: allCallLogs.filter(log => log.elevenLabsConversationId).length
     });
     
-    // Don't auto-complete here - let the polling logic handle final completion
-    if (callingLeads === 0 && campaign.status !== 'completed') {
-      console.log(`[Campaign Stats] No more calling leads for campaign ${campaignId}, but letting polling logic complete it`);
+    // If no leads are in calling and all leads are processed, mark campaign completed
+    if (callingLeads === 0 && totalProcessed === allLeads.length && campaign.status !== 'completed') {
+      await storage.updateCampaign(campaignId, { status: 'completed' });
+      console.log(`[Campaign Stats] ✅ Marked campaign ${campaignId} as completed`);
     }
   } catch (error) {
     console.error(`[Campaign Stats] Error updating campaign ${campaignId} statistics:`, error);

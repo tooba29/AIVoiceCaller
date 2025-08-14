@@ -283,21 +283,74 @@ export function registerUploadRoutes(app: Express): void {
       const leads: InsertLead[] = [];
       const filePath = req.file.path;
       
-      // Parse CSV file
+      // Parse CSV file with flexible headers and phone normalization
       await new Promise<void>((resolve, reject) => {
+        const normalizeHeader = (h: string) => h.toLowerCase().replace(/[\s_\-]/g, '');
+        const phoneHeaderCandidates = [
+          'contact_no','contactno','phone','phonenumber','mobile','mobilenumber','number','contact','phone_no','phone#'
+        ].map(normalizeHeader);
+        const firstHeaderCandidates = [
+          'first_name','firstname','givenname','fname'
+        ].map(normalizeHeader);
+        const lastHeaderCandidates = [
+          'last_name','lastname','surname','lname'
+        ].map(normalizeHeader);
+        const fullNameHeaderCandidates = [
+          'fullname','full_name','name','contactname','leadname'
+        ].map(normalizeHeader);
+
+        const getByHeaders = (row: Record<string, any>, candidates: string[]): string | undefined => {
+          for (const key of Object.keys(row)) {
+            const nk = normalizeHeader(key);
+            if (candidates.includes(nk)) {
+              const val = row[key];
+              if (typeof val === 'string' && val.trim().length > 0) return val.trim();
+              if (val != null) return String(val).trim();
+            }
+          }
+          return undefined;
+        };
+
+        const normalizePhone = (input: string, defaultCountry = '+971'): string | null => {
+          if (!input) return null;
+          let s = String(input).trim();
+          if (!s) return null;
+          // Keep only digits and plus
+          s = s.replace(/[^\d+]/g, '');
+          if (s.startsWith('00')) s = '+' + s.slice(2);
+          if (!s.startsWith('+')) {
+            if (s.startsWith('971')) s = '+' + s;
+            else if (s.startsWith('0')) s = defaultCountry + s.slice(1);
+            else s = defaultCountry + s;
+          }
+          return s;
+        };
+
         fs.createReadStream(filePath)
           .pipe(csv())
           .on('data', (row) => {
-            // Validate required columns
-            if (row.first_name && row.last_name && row.contact_no) {
-              leads.push({
-                campaignId: parseInt(campaignId),
-                firstName: row.first_name.trim(),
-                lastName: row.last_name.trim(),
-                contactNo: row.contact_no.trim(),
-                status: 'pending' // Explicitly set status
-              });
+            const contactRaw = getByHeaders(row as any, phoneHeaderCandidates);
+            if (!contactRaw) return; // skip rows without phone/contact
+
+            let first = getByHeaders(row as any, firstHeaderCandidates);
+            let last = getByHeaders(row as any, lastHeaderCandidates);
+            const full = getByHeaders(row as any, fullNameHeaderCandidates);
+            if ((!first || !last) && full) {
+              const parts = full.split(/\s+/).filter(Boolean);
+              if (!first && parts.length > 0) first = parts[0];
+              if (!last && parts.length > 1) last = parts.slice(1).join(' ');
             }
+
+            const normalizedPhone = normalizePhone(contactRaw);
+            if (!normalizedPhone) return;
+
+            leads.push({
+              campaignId: parseInt(campaignId),
+              firstName: first || null as any,
+              lastName: last || null as any,
+              contactNo: normalizedPhone,
+              status: 'pending'
+            });
           })
           .on('end', resolve)
           .on('error', reject);
@@ -306,15 +359,31 @@ export function registerUploadRoutes(app: Express): void {
       if (leads.length === 0) {
         fs.unlinkSync(req.file.path);
         return res.status(400).json({ 
-          error: "No valid leads found. CSV must contain columns: first_name, last_name, contact_no" 
+          error: "No valid leads found. CSV must contain at least a phone/contact column. Accepted headers include: contact_no, contactno, phone, phonenumber, mobile, mobilenumber, number, contact, phone_no, phone#" 
         });
       }
 
-      // Get existing leads count
+      // Deduplicate within uploaded leads by phone number
+      const seen = new Set<string>();
+      const uniqueUploaded = leads.filter(l => {
+        const key = l.contactNo;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // Get existing leads and filter out numbers already present
       const existingLeads = await storage.getLeadsByCampaign(parseInt(campaignId));
+      const existingPhones = new Set(existingLeads.map(l => l.contactNo));
+      const toCreate = uniqueUploaded.filter(l => !existingPhones.has(l.contactNo));
+
+      if (toCreate.length === 0) {
+        fs.unlinkSync(req.file.path);
+        return res.json({ success: true, leadsCount: 0, totalLeads: existingLeads.length, leads: [] });
+      }
       
       // Save new leads to storage
-      const createdLeads = await storage.createLeadsBatch(leads);
+      const createdLeads = await storage.createLeadsBatch(toCreate);
 
       // Update campaign with total leads count (existing + new)
       const totalLeads = existingLeads.length + createdLeads.length;
@@ -340,6 +409,82 @@ export function registerUploadRoutes(app: Express): void {
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to upload CSV" 
       });
+    }
+  });
+
+  // Import leads via JSON (flexible mapping)
+  app.post('/api/import-leads', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { campaignId, leads: incomingLeads } = req.body || {};
+      if (!campaignId) {
+        return res.status(400).json({ error: 'Campaign ID is required' });
+      }
+      if (!Array.isArray(incomingLeads) || incomingLeads.length === 0) {
+        return res.status(400).json({ error: 'No leads provided' });
+      }
+
+      // Check campaign ownership
+      const campaign = await storage.getCampaign(parseInt(campaignId));
+      if (!campaign || campaign.userId !== req.user!.id) {
+        return res.status(404).json({ error: 'Campaign not found or access denied' });
+      }
+
+      const normalizePhone = (input: string, defaultCountry = '+971'): string | null => {
+        if (!input) return null;
+        let s = String(input).trim();
+        if (!s) return null;
+        s = s.replace(/[^\d+]/g, '');
+        if (s.startsWith('00')) s = '+' + s.slice(2);
+        if (!s.startsWith('+')) {
+          if (s.startsWith('971')) s = '+' + s;
+          else if (s.startsWith('0')) s = defaultCountry + s.slice(1);
+          else s = defaultCountry + s;
+        }
+        return s;
+      };
+
+      const leadsToInsert: InsertLead[] = [];
+      for (const l of incomingLeads) {
+        const contactRaw = l.contactNo || l.phone || l.phoneNumber || l.mobile || l.number || l.contact;
+        const normalized = normalizePhone(contactRaw);
+        if (!normalized) continue;
+        const first = l.firstName || l.first_name || l.givenName || l.fname || null;
+        const last = l.lastName || l.last_name || l.surname || l.lname || null;
+        leadsToInsert.push({
+          campaignId: parseInt(campaignId),
+          firstName: first,
+          lastName: last,
+          contactNo: normalized,
+          status: 'pending'
+        });
+      }
+
+      // Deduplicate within incoming leads by normalized phone
+      const seen = new Set<string>();
+      const uniqueIncoming = leadsToInsert.filter(l => {
+        if (seen.has(l.contactNo)) return false; seen.add(l.contactNo); return true;
+      });
+
+      if (uniqueIncoming.length === 0) {
+        return res.status(400).json({ error: 'No valid leads after normalization' });
+      }
+
+      const existingLeads = await storage.getLeadsByCampaign(parseInt(campaignId));
+      const existingPhones = new Set(existingLeads.map(l => l.contactNo));
+      const toCreate = uniqueIncoming.filter(l => !existingPhones.has(l.contactNo));
+      
+      if (toCreate.length === 0) {
+        return res.json({ success: true, leadsCount: 0, totalLeads: existingLeads.length, leads: [] });
+      }
+
+      const createdLeads = await storage.createLeadsBatch(toCreate);
+      const totalLeads = existingLeads.length + createdLeads.length;
+      await storage.updateCampaign(parseInt(campaignId), { totalLeads, status: campaign.status });
+
+      res.json({ success: true, leadsCount: createdLeads.length, totalLeads, leads: createdLeads });
+    } catch (error) {
+      console.error('Import leads error:', error);
+      res.status(500).json({ error: 'Failed to import leads' });
     }
   });
 } 

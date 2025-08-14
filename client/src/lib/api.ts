@@ -210,6 +210,17 @@ export const api = {
     return handleResponse(response);
   },
 
+  // Leads
+  importLeads: async (campaignId: number, leads: Array<{ firstName?: string; lastName?: string; contactNo?: string; phone?: string; phoneNumber?: string; mobile?: string; number?: string; contact?: string }>) => {
+    const response = await fetch(`${BASE_URL}/api/import-leads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ campaignId, leads }),
+    });
+    return handleResponse(response);
+  },
+
   makeTestCall: async (data: { phoneNumber: string; campaignId?: number; firstName?: string }) => {
     const response = await fetch(`${BASE_URL}/api/make-outbound-call`, {
       method: 'POST',
