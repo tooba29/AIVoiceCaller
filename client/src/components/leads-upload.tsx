@@ -12,9 +12,9 @@ import { useTranslation } from "react-i18next";
 import Papa from "papaparse";
 
 interface LeadsUploadProps {
-	campaignId?: number;
-	onLeadsUpload: (leads: any[]) => void;
-	uploadedLeads: any[];
+  campaignId?: number;
+  onLeadsUpload: (leads: any[]) => void;
+  uploadedLeads: any[];
 }
 
 // Minimal type to satisfy TS for Papa.parse result
@@ -25,10 +25,10 @@ interface PapaParseResult<T> {
 }
 
 export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }: LeadsUploadProps) {
-	const { t } = useTranslation();
-	const [isDragging, setIsDragging] = useState(false);
-	const { toast } = useToast();
-	const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const [isDragging, setIsDragging] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
 	// Local state for flexible mapping/editing
 	const [rawRows, setRawRows] = useState<any[]>([]);
@@ -38,26 +38,26 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 	const [isReviewOpen, setIsReviewOpen] = useState(false);
 
 	// CSV upload (original strict server-side path kept)
-	const csvUploadMutation = useMutation({
-		mutationFn: ({ file, campaignId }: { file: File; campaignId: number }) =>
-			api.uploadCSV(file, campaignId.toString()),
-		onSuccess: (data) => {
-			toast({
-				title: "Leads Uploaded",
-				description: `${data.leadsCount} leads uploaded successfully!`,
+  const csvUploadMutation = useMutation({
+    mutationFn: ({ file, campaignId }: { file: File; campaignId: number }) =>
+      api.uploadCSV(file, campaignId.toString()),
+    onSuccess: (data) => {
+      toast({
+        title: "Leads Uploaded",
+        description: `${data.leadsCount} leads uploaded successfully!`,
 				duration: 1000,
-			});
-			onLeadsUpload(data.leads || []);
-			queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-		},
-		onError: (error: any) => {
-			toast({
-				title: t('leadsUpload.uploadFailed'),
-				description: error.message || t('leadsUpload.uploadFailedMessage'),
-				variant: "destructive",
-			});
-		},
-	});
+      });
+      onLeadsUpload(data.leads || []);
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t('leadsUpload.uploadFailed'),
+        description: error.message || t('leadsUpload.uploadFailedMessage'),
+        variant: "destructive",
+      });
+    },
+  });
 
 	// Import via JSON after mapping/editing
 	const importLeadsMutation = useMutation({
@@ -72,10 +72,10 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 			setHeaderMap({});
 			setIsReviewOpen(false);
 		},
-		onError: (error: any) => {
+    onError: (error: any) => {
 			toast({ title: "Import Failed", description: error.message || "Failed to import leads", variant: "destructive" });
-		},
-	});
+    },
+  });
 
 	const guessHeader = (headers: string[], candidates: string[]): string | undefined => {
 		const norm = (s: string) => s.toLowerCase().replace(/[\s_\-]/g, '');
@@ -128,97 +128,97 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 		setStep('edit');
 	};
 
-	const handleCSVUpload = (file: File) => {
-		if (!campaignId) {
+  const handleCSVUpload = (file: File) => {
+    if (!campaignId) {
 			toast({ title: t('leadsUpload.noCampaign'), description: t('leadsUpload.createCampaignFirst'), variant: "destructive" });
-			return;
-		}
+      return;
+    }
 
-		if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
 			toast({ title: t('leadsUpload.invalidCsv'), description: t('leadsUpload.csvFormatError'), variant: "destructive" });
-			return;
-		}
+      return;
+    }
 
 		if (file.size > 5 * 1024 * 1024) {
 			toast({ title: t('voiceSelection.fileTooLarge'), description: t('leadsUpload.csvTooLarge'), variant: "destructive" });
-			return;
-		}
+      return;
+    }
 
 		// Use flexible client-side parse + mapping instead of strict server parsing
 		parseCsvClient(file);
 		// If you still want the old behavior, call: csvUploadMutation.mutate({ file, campaignId })
-	};
+  };
 
-	const handleDrop = (e: React.DragEvent) => {
-		e.preventDefault();
-		setIsDragging(false);
-		const files = Array.from(e.dataTransfer.files);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
 		const csvFile = files.find(file => file.type === 'text/csv' || file.name.endsWith('.csv'));
 		if (csvFile) handleCSVUpload(csvFile);
 		else toast({ title: t('leadsUpload.invalidCsv'), description: t('leadsUpload.csvFormatError'), variant: "destructive" });
-	};
+  };
 
-	const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
 		if (file) handleCSVUpload(file);
-	};
+  };
 
-	const handleDeleteLeads = () => {
-		if (!campaignId || typeof campaignId !== 'number') {
+  const handleDeleteLeads = () => {
+    if (!campaignId || typeof campaignId !== 'number') {
 			toast({ title: "Error", description: "Campaign ID is required", variant: "destructive", duration: 1000 });
-			return;
-		}
+      return;
+    }
 		api.deleteLeads(campaignId).then(() => {
-			onLeadsUpload([]);
+        onLeadsUpload([]);
 			toast({ title: "Leads Deleted", description: "All leads have been deleted successfully", duration: 1000 });
 		}).catch((error) => {
 			toast({ title: "Error", description: error.message || "Failed to delete leads", variant: "destructive", duration: 1000 });
-		});
-	};
+    });
+  };
 
 	const canMap = rawRows.length > 0;
 	const canImport = mappedRows.length > 0 && !!campaignId;
 
-	return (
-		<Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
-			<CardHeader>
-				<CardTitle className="flex items-center space-x-4">
-					<div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-md">
-						<Users className="h-6 w-6 text-white" />
-					</div>
-					<div>
-						<h3 className="text-xl font-bold text-foreground">{t('leadsUpload.title')}</h3>
-						<p className="text-sm text-muted-foreground font-medium">{t('leadsUpload.subtitle')}</p>
-					</div>
-				</CardTitle>
-			</CardHeader>
-			<CardContent>
-				{/* CSV Upload */}
-				<div
-					className={`border-2 border-dashed rounded-lg p-6 text-center mb-4 transition-colors cursor-pointer ${
-						isDragging 
-							? "border-primary bg-primary/5" 
-							: "border-slate-300 hover:border-primary/50"
-					}`}
-					onDrop={handleDrop}
+  return (
+    <Card className="border border-border bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-md">
+            <Users className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-foreground">{t('leadsUpload.title')}</h3>
+            <p className="text-sm text-muted-foreground font-medium">{t('leadsUpload.subtitle')}</p>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* CSV Upload */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center mb-4 transition-colors cursor-pointer ${
+            isDragging 
+              ? "border-primary bg-primary/5" 
+              : "border-slate-300 hover:border-primary/50"
+          }`}
+          onDrop={handleDrop}
 					onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-					onDragLeave={() => setIsDragging(false)}
-					onClick={() => document.getElementById('csv-upload')?.click()}
-				>
-					<FileSpreadsheet className="h-8 w-8 text-slate-400 mx-auto mb-3" />
-					<p className="text-sm font-medium text-slate-600 mb-2">{t('leadsUpload.uploadCsv')}</p>
-					<p className="text-xs text-slate-500 mb-3">
+          onDragLeave={() => setIsDragging(false)}
+          onClick={() => document.getElementById('csv-upload')?.click()}
+        >
+          <FileSpreadsheet className="h-8 w-8 text-slate-400 mx-auto mb-3" />
+          <p className="text-sm font-medium text-slate-600 mb-2">{t('leadsUpload.uploadCsv')}</p>
+          <p className="text-xs text-slate-500 mb-3">
 						You can upload any CSV with columns for name and phone. We’ll help you map them. Phone numbers will default to +971 if no country code.
 					</p>
 					<Button variant="default" disabled={!campaignId} className="bg-primary hover:bg-primary/90">
-						<Upload className="h-4 w-4 mr-2" />
-						{t('leadsUpload.uploadCsv')}
-					</Button>
+                <Upload className="h-4 w-4 mr-2" />
+                {t('leadsUpload.uploadCsv')}
+          </Button>
 					<input id="csv-upload" type="file" accept=".csv" className="hidden" onChange={handleFileInput} />
-				</div>
+        </div>
 
-				{!campaignId && (
-					<div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+        {!campaignId && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
 						<p className="text-sm text-yellow-700">{t('leadsUpload.createCampaignFirst')}</p>
 					</div>
 				)}
@@ -296,49 +296,49 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 							<Button variant="default" disabled={!canImport} onClick={() => importLeadsMutation.mutate({ campaignId: campaignId!, leads: mappedRows })}>Import</Button>
 							<Button variant="outline" onClick={() => { setStep('map'); setMappedRows([]); }}>Back</Button>
 						</div>
-					</div>
-				)}
+          </div>
+        )}
 
-				{/* Lead Preview */}
-				{uploadedLeads.length > 0 && (
-					<div className="bg-slate-50 rounded-lg p-4">
-						<div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-							<p className="text-sm font-medium text-slate-700">{t('leadsUpload.leadPreview')}</p>
-							<div className="flex items-center gap-2 min-w-fit">
+        {/* Lead Preview */}
+        {uploadedLeads.length > 0 && (
+          <div className="bg-slate-50 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <p className="text-sm font-medium text-slate-700">{t('leadsUpload.leadPreview')}</p>
+              <div className="flex items-center gap-2 min-w-fit">
 								<Badge variant="secondary" className="bg-blue-100 text-blue-700">{uploadedLeads.length} {t('leadsUpload.contacts')}</Badge>
-								<AlertDialog>
-									<AlertDialogTrigger asChild>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
 										<Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">Delete All Leads</Button>
-									</AlertDialogTrigger>
-									<AlertDialogContent>
-										<AlertDialogHeader>
-											<AlertDialogTitle>Delete All Leads</AlertDialogTitle>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete All Leads</AlertDialogTitle>
 											<AlertDialogDescription>Are you sure you want to delete all {uploadedLeads.length} uploaded leads? This action cannot be undone.</AlertDialogDescription>
-										</AlertDialogHeader>
-										<AlertDialogFooter>
-											<AlertDialogCancel>Cancel</AlertDialogCancel>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
 											<AlertDialogAction onClick={handleDeleteLeads} className="bg-red-600 hover:bg-red-700 text-white">Delete All</AlertDialogAction>
-										</AlertDialogFooter>
-									</AlertDialogContent>
-								</AlertDialog>
-							</div>
-						</div>
-						<div className="space-y-2 max-h-40 overflow-y-auto">
-							{uploadedLeads.slice(0, 10).map((lead, index) => (
-								<div key={index} className="flex items-center justify-between py-2 px-3 bg-white rounded text-xs">
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {uploadedLeads.slice(0, 10).map((lead, index) => (
+                <div key={index} className="flex items-center justify-between py-2 px-3 bg-white rounded text-xs">
 									<span className="font-medium">{lead.firstName} {lead.lastName}</span>
-									<span className="text-slate-500">{lead.contactNo}</span>
-								</div>
-							))}
-							{uploadedLeads.length > 10 && (
-								<div className="py-2 px-3 text-center text-xs text-slate-500 bg-white rounded">
-									+{uploadedLeads.length - 10} {t('leadsUpload.moreContacts')}
-								</div>
-							)}
-						</div>
-					</div>
-				)}
-			</CardContent>
+                  <span className="text-slate-500">{lead.contactNo}</span>
+                </div>
+              ))}
+              {uploadedLeads.length > 10 && (
+                <div className="py-2 px-3 text-center text-xs text-slate-500 bg-white rounded">
+                  +{uploadedLeads.length - 10} {t('leadsUpload.moreContacts')}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
 
 			{/* Full-screen Review Modal */}
 			<Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
@@ -373,6 +373,6 @@ export default function LeadsUpload({ campaignId, onLeadsUpload, uploadedLeads }
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</Card>
-	);
+    </Card>
+  );
 }

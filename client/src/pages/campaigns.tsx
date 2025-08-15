@@ -33,6 +33,7 @@ export default function Campaigns() {
   const [, setLocation] = useLocation();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all');
 
   const { data: campaignsData, isLoading } = useQuery({
     queryKey: ["/api/campaigns"],
@@ -143,7 +144,11 @@ export default function Campaigns() {
   };
 
   // Display all campaigns (search functionality removed)
-  const filteredCampaigns = (campaignsData?.campaigns as Campaign[] || []);
+  const allCampaigns = (campaignsData?.campaigns as Campaign[] || []);
+  const filteredCampaigns = allCampaigns.filter(c => {
+    if (statusFilter === 'all') return true;
+    return (c.status === statusFilter);
+  });
 
   // Using getProgressPercentage from campaign-utils
 
@@ -216,6 +221,27 @@ export default function Campaigns() {
 
         <main className="flex-1 overflow-auto p-8 bg-gradient-to-br from-slate-50/50 via-blue-50/30 to-indigo-50/20">
           <div className="max-w-7xl mx-auto">
+            {/* Filters and info banners */}
+            {!isLoading && allCampaigns.length > 0 && (
+              <div className="mb-6">
+                {/* Status filter */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground/80 mr-2">Filter:</span>
+                  <Button variant={statusFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('all')}>All</Button>
+                  <Button variant={statusFilter === 'active' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('active')}>Active</Button>
+                  <Button variant={statusFilter === 'paused' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('paused')}>Paused</Button>
+                  <Button variant={statusFilter === 'completed' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('completed')}>Completed</Button>
+                </div>
+
+                {/* No running campaigns banner */}
+                {allCampaigns.every(c => c.status !== 'active') && (
+                  <div className="mt-4 p-3 rounded-lg border bg-yellow-50/70 border-yellow-200 text-yellow-800 text-sm">
+                    No campaigns are currently running. You can resume a paused campaign or create a new one.
+                  </div>
+                )}
+              </div>
+            )}
+
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                 {[...Array(6)].map((_, i) => (
@@ -233,7 +259,7 @@ export default function Campaigns() {
                   </Card>
                 ))}
               </div>
-            ) : campaignsData?.campaigns.length === 0 ? (
+            ) : allCampaigns.length === 0 ? (
               <div className="text-center py-16">
                 <div className="glass-card border-gradient p-12 max-w-md mx-auto">
                   <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
@@ -252,9 +278,17 @@ export default function Campaigns() {
                   </Button>
                 </div>
               </div>
+            ) : filteredCampaigns.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="max-w-md mx-auto p-6 rounded-xl border bg-white/70">
+                  <h4 className="font-semibold mb-2">No campaigns match this filter</h4>
+                  <p className="text-sm text-muted-foreground mb-4">Try a different status or clear the filter.</p>
+                  <Button variant="outline" size="sm" onClick={() => setStatusFilter('all')}>Clear filter</Button>
+                </div>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                {campaignsData?.campaigns.map((campaign: Campaign) => (
+                {filteredCampaigns.map((campaign: Campaign) => (
                   <Card 
                     key={campaign.id} 
                     className="glass-card border-gradient hover:shadow-2xl transition-all duration-300 group cursor-pointer relative overflow-hidden"
