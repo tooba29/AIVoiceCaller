@@ -1,0 +1,43 @@
+{
+  "name": "ai-voice-calling-system",
+  "version": "1.0.0",
+  "description": "AI Sales Calling Agent - Monorepo with Frontend and Backend",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev -w apps/backend",
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "start": "npm run start:backend",
+    "start:backend": "npm run start -w apps/backend",
+    "start:frontend": "npm run preview -w apps/frontend",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:backend": "npm run build -w apps/backend",
+    "build:frontend": "npm run build -w apps/frontend",
+    "install:all": "npm install && npm install -w apps/backend && npm install -w apps/frontend",
+    "clean": "npm run clean:backend && npm run clean:frontend",
+    "clean:backend": "rm -rf apps/backend/node_modules",
+    "clean:frontend": "rm -rf apps/frontend/node_modules"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "ai",
+    "sales",
+    "calling",
+    "twilio",
+    "openai",
+    "elevenlabs",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
