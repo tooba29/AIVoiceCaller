@@ -1,11 +1,26 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
+let openai = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is missing or empty');
+    }
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openai;
+}
 
 class OpenAIService {
   async generateResponse(prompt, systemPrompt, userInput, conversationHistory = []) {
@@ -27,7 +42,7 @@ class OpenAIService {
         content: `${prompt}\n\nUser input: ${userInput}`
       });
 
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: "gpt-4",
         messages: messages,
         max_tokens: 300,
@@ -51,7 +66,7 @@ class OpenAIService {
 
   async generateHumanLikeOpening(leadName, campaignContext) {
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: "gpt-4",
         messages: [
           {
@@ -91,7 +106,7 @@ class OpenAIService {
 
   async generateCampaignPrompt(campaignData) {
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: "gpt-4",
         messages: [
           {
@@ -122,7 +137,7 @@ class OpenAIService {
 
   async analyzeCallTranscript(transcript) {
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: "gpt-4",
         messages: [
           {
@@ -153,7 +168,7 @@ class OpenAIService {
 
   async analyzeForAppointmentIntent(conversationText) {
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: "gpt-4",
         messages: [
           {

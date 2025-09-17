@@ -429,7 +429,10 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
     const twilio = (await import('twilio')).default;
     const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
 
-    // Build TwiML URL for the call
+    // Use Twilio with ElevenLabs TTS integration (more reliable than direct ElevenLabs API)
+    console.log('🚀 USING TWILIO + ELEVENLABS TTS INTEGRATION');
+    console.log('🎯 This approach combines Twilio reliability with ElevenLabs neural voices');
+    
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
     const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
 
@@ -438,25 +441,26 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
     twimlUrl.searchParams.append('firstName', firstName || 'there');
     twimlUrl.searchParams.append('isTestCall', 'true');
     twimlUrl.searchParams.append('useElevenLabs', 'true');
+    twimlUrl.searchParams.append('campaignName', campaign.name || 'Test Campaign');
     if (campaignId) {
       twimlUrl.searchParams.append('campaignId', parseInt(campaignId).toString());
     }
 
-    console.log('Base URL:', baseUrl);
-    console.log('Secure base URL:', secureBaseUrl);
-    console.log('Initiating test call to:', cleanPhone);
-    console.log('TwiML URL:', twimlUrl.toString());
-
-    // Place the call
-    console.log('Creating Twilio call with params:', {
-      to: cleanPhone,
-      from: twilioPhoneNumber,
-      url: twimlUrl.toString(),
-      statusCallback: `${secureBaseUrl}/api/twilio/status`
-    });
+    console.log('🌐 Base URL:', baseUrl);
+    console.log('🔒 Secure base URL:', secureBaseUrl);
+    console.log('📞 Initiating enhanced AI call to:', cleanPhone);
+    console.log('🔗 TwiML URL:', twimlUrl.toString());
 
     let call;
     try {
+      // Place the call with enhanced webhooks
+      console.log('📞 Creating Twilio call with enhanced AI features:', {
+        to: cleanPhone,
+        from: twilioPhoneNumber,
+        url: twimlUrl.toString(),
+        statusCallback: `${secureBaseUrl}/api/twilio/status`
+      });
+
       call = await twilioClient.calls.create({
         to: cleanPhone,
         from: twilioPhoneNumber,
@@ -467,7 +471,8 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
         record: true
       });
 
-      console.log('Twilio call created:', call.sid);
+      console.log('✅ Enhanced Twilio + ElevenLabs call created:', call.sid);
+      console.log('🎉 Call will use neural voices and speech recognition!');
 
       // Update call log with Twilio SID
       await callLog.update({
@@ -483,10 +488,12 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Test call initiated successfully',
+      message: 'Enhanced AI call initiated successfully with ElevenLabs + Twilio integration',
       callSid: call.sid,
       callLogId: callLog.id,
-      status: 'initiated'
+      status: 'initiated',
+      provider: 'twilio-elevenlabs',
+      features: ['neural-voice', 'speech-recognition', 'conversational-ai', 'localtunnel-webhooks']
     });
 
   } catch (error) {

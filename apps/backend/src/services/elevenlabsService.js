@@ -2,9 +2,14 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import FormData from 'form-data';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { KnowledgeBase } from '../models/index.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 class ElevenLabsService {
   constructor() {
