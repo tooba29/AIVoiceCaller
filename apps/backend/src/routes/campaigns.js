@@ -399,151 +399,28 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
       console.log('⚠️ No valid campaignId provided - this is a test call without campaign');
     }
 
-    // Create call log entry
-    const callLog = await CallLog.create({
-      campaignId: campaignId ? parseInt(campaignId) : null,
-      leadId: null, // Test call, no specific lead
-      status: 'initiated',
-      twilioCallSid: null,
-      elevenlabsConversationId: null,
-      duration: null,
-      transcription: null,
-      userId: req.user.id
-    });
-
-    // Initialize Twilio client
-    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-    const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-
-    console.log('Twilio config check:', {
-      hasAccountSid: !!twilioAccountSid,
-      hasAuthToken: !!twilioAuthToken,
-      hasPhoneNumber: !!twilioPhoneNumber
-    });
-
-    if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
-      console.log('Twilio not configured');
-      return res.status(500).json({ error: 'Twilio not configured on server' });
+    // Create a mock lead for test calls if no campaign is provided
+    let lead = null;
+    if (campaign) {
+      // Try to get the first lead from the campaign
+      lead = await Lead.findOne({
+        where: { campaignId: campaign.id }
+      });
     }
-
-    const twilio = (await import('twilio')).default;
-    const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
-
-    // Determine calling method based on configuration and request
-    const useDirectElevenLabs = req.body.useDirectElevenLabs || false;
-    const elevenLabsConfigured = !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID);
     
-    if (useDirectElevenLabs && elevenLabsConfigured) {
-      console.log('🤖 USING DIRECT ELEVENLABS CALLING');
-      console.log('🎯 This approach uses ElevenLabs for both calling and voice generation');
-      
-      // Use direct ElevenLabs calling
-      try {
-        const openingMessage = `Hi ${firstName || 'there'}! This is Sarah calling from ${campaign.name || 'Spark AI'}. I hope I'm not catching you at a bad time?`;
-        
-        const callData = {
-          campaignId: campaign.id,
-          leadId: lead.id,
-          firstPrompt: openingMessage,
-          systemPersona: campaign.systemPersona || "You are a professional sales representative. Be helpful, friendly, and focus on understanding the customer's needs.",
-          leadName: firstName || 'there',
-          selectedVoice: campaign.selectedVoice || '21m00Tcm4TlvDq8ikWAM',
-          scriptType: campaign.scriptType || 'conversational',
-          scriptOpening: campaign.scriptOpening || openingMessage,
-          scriptSystem: campaign.systemPersona || "You are a professional sales representative.",
-          knowledgeBase: campaign.knowledgeBase || '',
-          aiConfig: campaign.aiConfig || {}
-        };
-
-        console.log('📤 Making direct ElevenLabs call...');
-        const elevenLabsResult = await intelligentCallService.makeElevenLabsCall(cleanPhone, campaign, lead, openingMessage);
-        
-        if (elevenLabsResult.success) {
-          // Update call log with ElevenLabs call ID
-          await callLog.update({
-            elevenLabsCallId: elevenLabsResult.callId,
-            status: 'initiated',
-            provider: 'elevenlabs'
-          });
-
-          return res.json({
-            success: true,
-            message: 'Direct ElevenLabs call initiated successfully',
-            callId: elevenLabsResult.callId,
-            callLogId: callLog.id,
-            status: 'initiated',
-            provider: 'elevenlabs',
-            features: ['neural-voice', 'conversational-ai', 'direct-calling']
-          });
-        } else {
-          console.log('⚠️ Direct ElevenLabs call failed, falling back to Twilio + TTS');
-        }
-      } catch (error) {
-        console.error('❌ Direct ElevenLabs call error:', error);
-        console.log('⚠️ Falling back to Twilio + ElevenLabs TTS');
-      }
+    // If no lead found, create a mock lead for test calls
+    if (!lead) {
+      lead = {
+        id: 'test-lead-' + Date.now(),
+        firstName: firstName || 'Test User',
+        lastName: 'Test',
+        phoneNumber: cleanPhone,
+        email: 'test@example.com',
+        status: 'pending'
+      };
     }
 
-    // Use Twilio with ElevenLabs TTS integration (fallback or primary method)
-    console.log('🚀 USING TWILIO + ELEVENLABS TTS INTEGRATION');
-    console.log('🎯 This approach combines Twilio reliability with ElevenLabs neural voices');
-    console.log('🎤 TTS will be generated dynamically using ElevenLabs API');
-    
-    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
-    const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
-
-    const twimlUrl = new URL(`${secureBaseUrl}/outbound-call-twiml`);
-    twimlUrl.searchParams.append('callLogId', callLog.id.toString());
-    twimlUrl.searchParams.append('firstName', firstName || 'there');
-    twimlUrl.searchParams.append('isTestCall', 'true');
-    twimlUrl.searchParams.append('useElevenLabs', 'true');
-    twimlUrl.searchParams.append('campaignName', campaign.name || 'Test Campaign');
-    if (campaignId) {
-      twimlUrl.searchParams.append('campaignId', parseInt(campaignId).toString());
-    }
-
-    console.log('🌐 Base URL:', baseUrl);
-    console.log('🔒 Secure base URL:', secureBaseUrl);
-    console.log('📞 Initiating enhanced AI call to:', cleanPhone);
-    console.log('🔗 TwiML URL:', twimlUrl.toString());
-
-    let call;
-    try {
-      // Place the call with enhanced webhooks
-      console.log('📞 Creating Twilio call with enhanced AI features:', {
-        to: cleanPhone,
-        from: twilioPhoneNumber,
-        url: twimlUrl.toString(),
-        statusCallback: `${secureBaseUrl}/api/twilio/status`
-      });
-
-      call = await twilioClient.calls.create({
-        to: cleanPhone,
-        from: twilioPhoneNumber,
-        url: twimlUrl.toString(),
-        statusCallback: `${secureBaseUrl}/api/twilio/status`,
-        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        method: 'POST',
-        record: true
-      });
-
-      console.log('✅ Enhanced Twilio + ElevenLabs call created:', call.sid);
-      console.log('🎉 Call will use neural voices and speech recognition!');
-
-      // Update call log with Twilio SID
-      await callLog.update({
-        twilioCallSid: call.sid,
-        status: 'ringing'
-      });
-
-      console.log('Call initiated successfully:', call.sid);
-    } catch (twilioError) {
-      console.error('Twilio call creation failed:', twilioError);
-      return res.status(500).json({ error: `Twilio error: ${twilioError.message}` });
-    }
-
-    // Use the unified calling service instead of the complex logic above
+    // Use the unified calling service
     console.log('🚀 USING UNIFIED CALLING SERVICE');
     console.log('🎯 Both ElevenLabs & Twilio working together seamlessly');
 

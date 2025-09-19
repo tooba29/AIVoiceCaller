@@ -73,17 +73,17 @@ class UnifiedCallingService {
       const openingMessage = this.generateOpeningMessage(campaignData, leadData);
       
       const result = await elevenlabsService.makeCall(phoneNumber, {
-        campaignId: campaignData.id,
-        leadId: leadData.id,
+        campaignId: campaignData?.id || null,
+        leadId: leadData?.id || null,
         firstPrompt: openingMessage,
-        systemPersona: campaignData.systemPersona || "You are a professional sales representative.",
-        leadName: leadData.firstName || 'there',
-        selectedVoice: campaignData.selectedVoice || '21m00Tcm4TlvDq8ikWAM',
-        scriptType: campaignData.scriptType || 'conversational',
+        systemPersona: campaignData?.systemPersona || "You are a professional sales representative.",
+        leadName: leadData?.firstName || 'there',
+        selectedVoice: campaignData?.selectedVoice || '21m00Tcm4TlvDq8ikWAM',
+        scriptType: campaignData?.scriptType || 'conversational',
         scriptOpening: openingMessage,
-        scriptSystem: campaignData.systemPersona || "You are a professional sales representative.",
-        knowledgeBase: campaignData.knowledgeBase || '',
-        aiConfig: campaignData.aiConfig || {}
+        scriptSystem: campaignData?.systemPersona || "You are a professional sales representative.",
+        knowledgeBase: campaignData?.knowledgeBase || '',
+        aiConfig: campaignData?.aiConfig || {}
       });
 
       if (result.success) {
@@ -250,10 +250,28 @@ class UnifiedCallingService {
   }
 
   async createCallLog(phoneNumber, campaignData, leadData) {
+    // For test calls without a campaign, create a mock call log entry
+    if (!campaignData?.id) {
+      return {
+        id: 'test-call-' + Date.now(),
+        phoneNumber: phoneNumber,
+        campaignId: null,
+        leadId: leadData?.id || null,
+        status: 'initiating',
+        provider: 'unified',
+        method: 'unified',
+        startTime: new Date(),
+        update: async (data) => {
+          console.log('Mock call log update:', data);
+          return this;
+        }
+      };
+    }
+    
     return await CallLog.create({
       phoneNumber: phoneNumber,
       campaignId: campaignData.id,
-      leadId: leadData.id,
+      leadId: leadData?.id || null,
       status: 'initiating',
       provider: 'unified',
       method: 'unified',
@@ -262,10 +280,10 @@ class UnifiedCallingService {
   }
 
   generateOpeningMessage(campaignData, leadData) {
-    const firstName = leadData.firstName || 'there';
-    const campaignName = campaignData.name || 'Spark AI';
+    const firstName = leadData?.firstName || 'there';
+    const campaignName = campaignData?.name || 'Spark AI';
     
-    if (campaignData.scriptOpening) {
+    if (campaignData?.scriptOpening) {
       return campaignData.scriptOpening.replace(/{name}/g, firstName);
     }
     

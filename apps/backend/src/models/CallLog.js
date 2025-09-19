@@ -9,7 +9,7 @@ const CallLog = sequelize.define('CallLog', {
   },
   campaignId: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: true
   },
   leadId: {
     type: DataTypes.INTEGER,
