@@ -28,6 +28,11 @@ import uploadRoutes from './routes/uploads.js';
 import experienceRoutes from './routes/experience.js';
 import webhookRoutes from './routes/webhooks.js';
 import conversationRoutes from './routes/conversations.js';
+import twilioWebhookRoutes from './routes/twilioWebhooks.js';
+import ttsRoutes from './routes/tts.js';
+
+// Import configuration checker
+import { checkConfiguration, getWebhookUrls } from './config/checkConfig.js';
 
 // Import models
 import { CallLog } from './models/index.js';
@@ -37,6 +42,7 @@ import twilioService from './services/twilioService.js';
 import intelligentCallService from './services/intelligentCallService.js';
 import openaiService from './services/openaiService.js';
 import elevenlabsService from './services/elevenlabsService.js';
+import ttsService from './services/ttsService.js';
 
 const app = express();
 const server = createServer(app);
@@ -391,6 +397,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/experience-call', experienceRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/twilio', twilioWebhookRoutes);
+app.use('/api/tts', ttsRoutes);
 app.use('/api/conversations', conversationRoutes);
 
 app.get('/api/calls/:callSid/recording', async (req, res) => {
@@ -454,12 +462,73 @@ if (window.location.href.includes('ngrok-free.app')) {
     let twimlResponse;
     
     if (useElevenLabs === 'true') {
-      console.log('🤖 Using Enhanced ElevenLabs + Twilio Integration');
+      console.log('🤖 Using Enhanced ElevenLabs TTS + Twilio Integration');
       console.log('🎭 Features: Neural voice, Speech recognition, Conversational AI');
       
       const campaignName = req.query.campaignName || 'AI Voice Caller';
       
-      // Enhanced conversational TwiML with multiple interaction points
+      try {
+        // Check if TTS audio was pre-generated and passed in the URL
+        const ttsAudio = req.query.ttsAudio;
+        
+        if (ttsAudio) {
+          console.log('🎤 Using pre-generated ElevenLabs TTS audio');
+          // Use pre-generated ElevenLabs TTS with TwiML
+          twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>data:audio/mpeg;base64,${ttsAudio}</Play>
+  <Pause length="2"/>
+  <Gather input="speech" timeout="6" speechTimeout="4" action="${baseUrl}/handle-response?step=greeting&amp;callLogId=${callLogId}&amp;firstName=${encodeURIComponent(firstName || 'there')}" method="POST">
+    <Say voice="Polly.Joanna-Neural">I wanted to reach out about something that might be really helpful for you. Do you have a quick moment to chat about your business needs?</Say>
+  </Gather>
+  <Say voice="Polly.Joanna-Neural">I didn't catch that, but that's perfectly okay! This was actually a test call to verify our unified AI Voice Caller system is working flawlessly.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna-Neural">And the great news is - everything is functioning beautifully! We've successfully unified ElevenLabs neural voices with Twilio's reliability, and both services are working together seamlessly.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna-Neural">This means your AI calling system is now fully operational with the best of both worlds - ElevenLabs quality and Twilio reliability. Thank you so much for helping us test this unified integration, ${firstName || 'there'}. Have a fantastic day!</Say>
+</Response>`;
+        } else {
+          // Generate ElevenLabs TTS on-the-fly
+          console.log('🎤 Generating ElevenLabs TTS on-the-fly');
+          const openingText = `Hi ${firstName || 'there'}! This is Sarah calling from ${campaignName}. I hope I'm not catching you at a bad time?`;
+          const ttsResult = await ttsService.generateSpeechForTwilio(openingText);
+          
+          if (ttsResult.success) {
+            // Use ElevenLabs TTS with TwiML
+            twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>data:audio/mpeg;base64,${ttsResult.base64Audio}</Play>
+  <Pause length="2"/>
+  <Gather input="speech" timeout="6" speechTimeout="4" action="${baseUrl}/handle-response?step=greeting&amp;callLogId=${callLogId}&amp;firstName=${encodeURIComponent(firstName || 'there')}" method="POST">
+    <Say voice="Polly.Joanna-Neural">I wanted to reach out about something that might be really helpful for you. Do you have a quick moment to chat about your business needs?</Say>
+  </Gather>
+  <Say voice="Polly.Joanna-Neural">I didn't catch that, but that's perfectly okay! This was actually a test call to verify our unified AI Voice Caller system is working flawlessly.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna-Neural">And the great news is - everything is functioning beautifully! We've successfully unified ElevenLabs neural voices with Twilio's reliability, and both services are working together seamlessly.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna-Neural">This means your AI calling system is now fully operational with the best of both worlds - ElevenLabs quality and Twilio reliability. Thank you so much for helping us test this unified integration, ${firstName || 'there'}. Have a fantastic day!</Say>
+</Response>`;
+          } else {
+            console.log('⚠️ ElevenLabs TTS failed, falling back to Twilio TTS');
+            // Fallback to Twilio TTS
+            twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna-Neural">Hi ${firstName || 'there'}! This is Sarah calling from ${campaignName}. I hope I'm not catching you at a bad time?</Say>
+  <Pause length="2"/>
+  <Gather input="speech" timeout="6" speechTimeout="4" action="${baseUrl}/handle-response?step=greeting&amp;callLogId=${callLogId}&amp;firstName=${encodeURIComponent(firstName || 'there')}" method="POST">
+    <Say voice="Polly.Joanna-Neural">I wanted to reach out about something that might be really helpful for you. Do you have a quick moment to chat about your business needs?</Say>
+  </Gather>
+  <Say voice="Polly.Joanna-Neural">I didn't catch that, but that's perfectly okay! This was actually a test call to verify our unified AI Voice Caller system is working flawlessly.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna-Neural">And the great news is - everything is functioning beautifully! We've successfully unified ElevenLabs neural voices with Twilio's reliability, and both services are working together seamlessly.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna-Neural">This means your AI calling system is now fully operational with the best of both worlds - ElevenLabs quality and Twilio reliability. Thank you so much for helping us test this unified integration, ${firstName || 'there'}. Have a fantastic day!</Say>
+</Response>`;
+          }
+        }
+      } catch (error) {
+        console.error('❌ ElevenLabs TTS error:', error);
+        // Fallback to Twilio TTS
       twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna-Neural">Hi ${firstName || 'there'}! This is Sarah calling from ${campaignName}. I hope I'm not catching you at a bad time?</Say>
@@ -467,12 +536,13 @@ if (window.location.href.includes('ngrok-free.app')) {
   <Gather input="speech" timeout="6" speechTimeout="4" action="${baseUrl}/handle-response?step=greeting&amp;callLogId=${callLogId}&amp;firstName=${encodeURIComponent(firstName || 'there')}" method="POST">
     <Say voice="Polly.Joanna-Neural">I wanted to reach out about something that might be really helpful for you. Do you have a quick moment to chat about your business needs?</Say>
   </Gather>
-  <Say voice="Polly.Joanna-Neural">I didn't catch that, but that's perfectly okay! This was actually a test call to verify our enhanced AI Voice Caller system is working flawlessly.</Say>
+  <Say voice="Polly.Joanna-Neural">I didn't catch that, but that's perfectly okay! This was actually a test call to verify our unified AI Voice Caller system is working flawlessly.</Say>
   <Pause length="1"/>
-  <Say voice="Polly.Joanna-Neural">And the great news is - everything is functioning beautifully! We've successfully integrated ElevenLabs neural voices with Twilio's reliability, resolved all application errors, and LocalTunnel is providing seamless webhook connectivity.</Say>
+  <Say voice="Polly.Joanna-Neural">And the great news is - everything is functioning beautifully! We've successfully unified ElevenLabs neural voices with Twilio's reliability, and both services are working together seamlessly.</Say>
   <Pause length="1"/>
-  <Say voice="Polly.Joanna-Neural">This means your AI calling system is now fully operational with advanced conversational capabilities. Thank you so much for helping us test this enhanced integration, ${firstName || 'there'}. Have a fantastic day!</Say>
+  <Say voice="Polly.Joanna-Neural">This means your AI calling system is now fully operational with the best of both worlds - ElevenLabs quality and Twilio reliability. Thank you so much for helping us test this unified integration, ${firstName || 'there'}. Have a fantastic day!</Say>
 </Response>`;
+      }
     } else {
       // Standard TwiML response
       twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
@@ -669,6 +739,10 @@ app.use('*', (req, res) => {
 // Start server
 async function startServer() {
   try {
+    // Check configuration
+    console.log('🔧 Checking configuration...');
+    const config = checkConfiguration();
+    
     // Test database connection
     if (process.env.DATABASE_URL) {
       await sequelize.authenticate();
@@ -683,6 +757,13 @@ async function startServer() {
       console.log('⚠️  Database not configured, using mock data.');
     }
     
+    // Get webhook URLs
+    const webhookUrls = getWebhookUrls();
+    console.log('🔗 Webhook URLs:');
+    console.log('   TwiML:', webhookUrls.twimlUrl);
+    console.log('   Status Callback:', webhookUrls.statusCallbackUrl);
+    console.log('   ElevenLabs Webhook:', webhookUrls.elevenlabsWebhookUrl);
+    
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
@@ -690,6 +771,20 @@ async function startServer() {
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🤖 AI Services: Twilio=${!!process.env.TWILIO_ACCOUNT_SID}, OpenAI=${!!process.env.OPENAI_API_KEY}, ElevenLabs=${!!process.env.ELEVENLABS_API_KEY}`);
       console.log(`🔊 WebSocket server ready for real-time audio streaming`);
+      
+      // Configuration summary
+      if (!config.twilio.configured || !config.elevenlabs.configured) {
+        console.log('\n⚠️  CONFIGURATION ISSUES DETECTED:');
+        if (!config.twilio.configured) {
+          console.log('❌ Twilio not configured - calls will be mocked');
+        }
+        if (!config.elevenlabs.configured) {
+          console.log('❌ ElevenLabs not configured - voice features disabled');
+        }
+        console.log('📝 Please check your .env file and ensure all required variables are set.');
+      } else {
+        console.log('\n✅ All services configured successfully!');
+      }
     });
   } catch (error) {
     console.error('❌ Unable to start server:', error);

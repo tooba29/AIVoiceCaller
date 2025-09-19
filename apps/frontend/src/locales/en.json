@@ -346,52 +346,50 @@
     "callDescription": "Our AI agent will call you within 2-3 minutes to demonstrate the experience"
   },
   "pricing": {
-    "title": "Simple, Transparent Pricing",
-    "subtitle": "Choose the plan that fits your business needs. All plans include a 14-day free trial.",
+    "title": "Voice AI Outbound Agent - Pricing",
+    "subtitle": "Transparent pricing with no hidden costs. Choose the support package that fits your needs.",
     "mostPopular": "Most Popular",
-    "starter": {
-      "name": "Starter",
-      "price": "$99",
+    "setupFee": {
+      "title": "One-time Setup Fee",
+      "price": "AED 10,000",
+      "description": "Per agent setup and configuration"
+    },
+    "aiUsage": {
+      "title": "AI Usage Fees",
+      "price": "AED 0.51 - 0.66",
+      "period": "/minute",
+      "description": "Billed to the exact second (covers voice generation, real-time transcription, and LLM processing)"
+    },
+    "essential": {
+      "name": "Essential Support",
+      "price": "AED 1,500",
       "period": "/month",
-      "description": "Perfect for small teams getting started with AI calling",
+      "description": "Perfect for businesses getting started with AI calling",
       "features": [
-        "100 AI calls per month",
-        "5 voice options",
-        "Basic analytics",
-        "Email support",
-        "2 team members"
+        "24x7 uptime monitoring and incident alerts",
+        "Up to 4 hours/month of flow tweaks or prompt changes",
+        "Unused time rolls over for 60 days",
+        "Monthly performance report with actionable insights",
+        "Email support with next-business-day SLA"
       ]
     },
-    "professional": {
-      "name": "Professional",
-      "price": "$299",
+    "premium": {
+      "name": "Premium Support",
+      "price": "AED 3,000",
       "period": "/month",
-      "description": "Ideal for growing businesses with advanced needs",
+      "description": "For businesses requiring advanced optimization and priority support",
       "features": [
-        "1,000 AI calls per month",
-        "25 voice options",
-        "Advanced analytics",
-        "Priority support",
-        "10 team members",
-        "Custom voice cloning",
-        "Multi-language support"
+        "Everything in Essential plus:",
+        "Up to 10 hours/month of prompt/flow optimization",
+        "Strategy session to review metrics and roadmap",
+        "Priority support queue with same-business-day responses",
+        "Early-access testing of lower-cost voice models",
+        "30-day notice for package changes"
       ]
     },
-    "enterprise": {
-      "name": "Enterprise",
-      "price": "$999",
-      "period": "/month",
-      "description": "For large organizations with unlimited scaling needs",
-      "features": [
-        "Unlimited AI calls",
-        "All voice options",
-        "Custom integrations",
-        "Dedicated support",
-        "Unlimited team members",
-        "Advanced AI training",
-        "White-label solution",
-        "API access"
-      ]
+    "notes": {
+      "vat": "UAE 5% VAT applies where relevant",
+      "optimization": "We upgrade your agent with larger-scale models and pass savings on - no lock-in metered rates"
     }
   },
   "testimonials": {

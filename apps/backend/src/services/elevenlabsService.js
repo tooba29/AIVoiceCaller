@@ -70,6 +70,18 @@ class ElevenLabsService {
 
   async makeCall(phoneNumber, campaignData) {
     try {
+      // Check configuration
+      if (!this.apiKey) {
+        throw new Error('ElevenLabs API key not configured. Please set ELEVENLABS_API_KEY in your environment variables.');
+      }
+      
+      if (!this.agentId) {
+        throw new Error('ElevenLabs Agent ID not configured. Please set ELEVENLABS_AGENT_ID in your environment variables.');
+      }
+
+      console.log('🎤 Making ElevenLabs call to:', phoneNumber);
+      console.log('📋 Campaign data:', campaignData);
+
       // Use the selected voice from campaign data, or fallback to default
       const selectedVoice = campaignData.selectedVoice || "21m00Tcm4TlvDq8ikWAM";
       
@@ -139,7 +151,8 @@ class ElevenLabsService {
         headers: {
           'xi-api-key': this.apiKey,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 30000 // 30 second timeout
       });
 
       console.log('✅ ElevenLabs call response:', response.data);
@@ -150,10 +163,44 @@ class ElevenLabsService {
         agent_config: agentConfig
       };
     } catch (error) {
-      console.error('ElevenLabs make call error:', error);
+      console.error('❌ ElevenLabs make call error:', error.message);
+      
+      if (error.response) {
+        console.error('📊 Error response status:', error.response.status);
+        console.error('📊 Error response data:', error.response.data);
+        
+        // Handle specific ElevenLabs API errors
+        if (error.response.status === 401) {
+          return {
+            success: false,
+            error: 'Invalid ElevenLabs API key. Please check your ELEVENLABS_API_KEY.',
+            message: 'Authentication failed'
+          };
+        } else if (error.response.status === 404) {
+          return {
+            success: false,
+            error: 'ElevenLabs Agent ID not found. Please check your ELEVENLABS_AGENT_ID.',
+            message: 'Agent not found'
+          };
+        } else if (error.response.status === 429) {
+          return {
+            success: false,
+            error: 'ElevenLabs API rate limit exceeded. Please try again later.',
+            message: 'Rate limit exceeded'
+          };
+        }
+      } else if (error.code === 'ECONNABORTED') {
+        return {
+          success: false,
+          error: 'ElevenLabs API request timeout. Please check your internet connection.',
+          message: 'Request timeout'
+        };
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.detail || error.message
+        error: error.message || 'Unknown error occurred',
+        message: 'Failed to make ElevenLabs call'
       };
     }
   }

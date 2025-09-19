@@ -56,6 +56,7 @@ import {
 import { Button } from '@/components/ui/button';
 import Navigation from '@/components/navigation';
 import { api } from '@/lib/api';
+import BannerSlides from '@/components/banner-slides';
 
 export default function Home() {
   const { t } = useTranslation();
@@ -174,31 +175,22 @@ export default function Home() {
 
   const pricingPlans = [
     {
-      name: t('pricing.starter.name'),
-      price: t('pricing.starter.price'),
-      period: t('pricing.starter.period'),
-      description: t('pricing.starter.description'),
-      features: t('pricing.starter.features', { returnObjects: true }) as string[],
+      name: t('pricing.essential.name'),
+      price: t('pricing.essential.price'),
+      period: t('pricing.essential.period'),
+      description: t('pricing.essential.description'),
+      features: t('pricing.essential.features', { returnObjects: true }) as string[],
       popular: false,
-      color: "from-gray-500 to-gray-600"
+      color: "from-blue-500 to-cyan-500"
     },
     {
-      name: t('pricing.professional.name'),
-      price: t('pricing.professional.price'),
-      period: t('pricing.professional.period'),
-      description: t('pricing.professional.description'),
-      features: t('pricing.professional.features', { returnObjects: true }) as string[],
+      name: t('pricing.premium.name'),
+      price: t('pricing.premium.price'),
+      period: t('pricing.premium.period'),
+      description: t('pricing.premium.description'),
+      features: t('pricing.premium.features', { returnObjects: true }) as string[],
       popular: true,
       color: "from-purple-500 to-green-500"
-    },
-    {
-      name: t('pricing.enterprise.name'),
-      price: t('pricing.enterprise.price'),
-      period: t('pricing.enterprise.period'),
-      description: t('pricing.enterprise.description'),
-      features: t('pricing.enterprise.features', { returnObjects: true }) as string[],
-      popular: false,
-      color: "from-blue-500 to-indigo-500"
     }
   ];
 
@@ -414,16 +406,23 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-green-50 dark:from-slate-900 dark:via-purple-900/20 dark:to-green-900/20">
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-brand-100 to-brand-50 dark:from-brand-900 dark:via-brand-800/20 dark:to-brand-900">
       <Navigation />
 
+      {/* Banner Slides Section */}
+      <section className="pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <BannerSlides />
+        </div>
+      </section>
+
       {/* Hero Section */}
-      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+      <section className="pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-              <Sparkles className="h-4 w-4 text-purple-500" />
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <Sparkles className="h-4 w-4 text-brand-500" />
+              <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
                 {t('hero.tagline')}
               </span>
             </div>
@@ -432,13 +431,13 @@ export default function Home() {
               {t('hero.title')}
             </h1>
             
-            <p className="text-xl text-slate-600 dark:text-slate-400 mb-8 max-w-3xl mx-auto">
+            <p className="text-xl text-brand-600 dark:text-brand-400 mb-8 max-w-3xl mx-auto">
               {t('hero.subtitle')}
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link href="/login">
-                <Button size="lg" className="bg-gradient-to-r from-purple-500 to-green-500 hover:from-purple-600 hover:to-green-600 text-white px-8 py-3 text-lg">
+                <Button size="lg" className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white px-8 py-3 text-lg">
                   {t('hero.startFreeTrial')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
@@ -457,7 +456,7 @@ export default function Home() {
                 <div className="text-3xl md:text-4xl font-bold spark-gradient-text mb-2">
                   {stat.number}
                 </div>
-                <div className="text-slate-600 dark:text-slate-400 text-sm md:text-base">
+                <div className="text-brand-600 dark:text-brand-400 text-sm md:text-base">
                   {stat.label}
                 </div>
               </div>
@@ -944,7 +943,44 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Setup Fee and AI Usage */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            {/* Setup Fee */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 dark:border-slate-700/50 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Settings className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">
+                {t('pricing.setupFee.title')}
+              </h3>
+              <div className="mb-4">
+                <span className="text-4xl font-bold spark-gradient-text">{t('pricing.setupFee.price')}</span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400">
+                {t('pricing.setupFee.description')}
+              </p>
+            </div>
+
+            {/* AI Usage */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 dark:border-slate-700/50 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Zap className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">
+                {t('pricing.aiUsage.title')}
+              </h3>
+              <div className="mb-4">
+                <span className="text-4xl font-bold spark-gradient-text">{t('pricing.aiUsage.price')}</span>
+                <span className="text-slate-600 dark:text-slate-400">{t('pricing.aiUsage.period')}</span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400">
+                {t('pricing.aiUsage.description')}
+              </p>
+            </div>
+          </div>
+
+          {/* Support Packages */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             {pricingPlans.map((plan, index) => (
               <div key={index} className={`relative bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-2 ${
                 plan.popular 
@@ -974,8 +1010,8 @@ export default function Home() {
 
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-center space-x-3">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <li key={featureIndex} className="flex items-start space-x-3">
+                      <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
                       <span className="text-slate-700 dark:text-slate-300">{feature}</span>
                     </li>
                   ))}
@@ -992,6 +1028,19 @@ export default function Home() {
                 </Link>
               </div>
             ))}
+          </div>
+
+          {/* Notes */}
+          <div className="bg-gradient-to-r from-purple-50 to-green-50 dark:from-purple-900/20 dark:to-green-900/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-800">
+            <div className="text-center">
+              <h4 className="text-lg font-semibold text-purple-800 dark:text-purple-200 mb-4">
+                Important Notes
+              </h4>
+              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <p><strong>VAT:</strong> {t('pricing.notes.vat')}</p>
+                <p><strong>Optimizations:</strong> {t('pricing.notes.optimization')}</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -20,8 +20,17 @@ class TwilioService {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
+    console.log('🔧 Twilio Configuration Check:');
+    console.log('📊 Account SID:', accountSid ? 'configured' : 'missing');
+    console.log('📊 Auth Token:', authToken ? 'configured' : 'missing');
+    console.log('📊 Phone Number:', phoneNumber || 'missing');
+
     if (!accountSid || !authToken || !phoneNumber) {
       console.warn('⚠️  Twilio credentials not found. Calls will be mocked.');
+      console.warn('📝 Please set the following environment variables:');
+      console.warn('   - TWILIO_ACCOUNT_SID');
+      console.warn('   - TWILIO_AUTH_TOKEN');
+      console.warn('   - TWILIO_PHONE_NUMBER');
       return;
     }
 
@@ -29,6 +38,7 @@ class TwilioService {
       this.client = twilio(accountSid, authToken);
       this.phoneNumber = phoneNumber;
       console.log('✅ Twilio service initialized successfully');
+      console.log('📞 Using phone number:', phoneNumber);
     } catch (error) {
       console.error('❌ Failed to initialize Twilio:', error.message);
     }

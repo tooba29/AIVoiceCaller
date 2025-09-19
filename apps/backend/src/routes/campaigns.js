@@ -4,6 +4,7 @@ import { Campaign, Lead, KnowledgeBase, CallLog, User } from '../models/index.js
 import { requireAuth } from '../middleware/auth.js';
 import twilioService from '../services/twilioService.js';
 import elevenlabsService from '../services/elevenlabsService.js';
+import unifiedCallingService from '../services/unifiedCallingService.js';
 
 const router = express.Router();
 
@@ -429,9 +430,65 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
     const twilio = (await import('twilio')).default;
     const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
 
-    // Use Twilio with ElevenLabs TTS integration (more reliable than direct ElevenLabs API)
+    // Determine calling method based on configuration and request
+    const useDirectElevenLabs = req.body.useDirectElevenLabs || false;
+    const elevenLabsConfigured = !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID);
+    
+    if (useDirectElevenLabs && elevenLabsConfigured) {
+      console.log('🤖 USING DIRECT ELEVENLABS CALLING');
+      console.log('🎯 This approach uses ElevenLabs for both calling and voice generation');
+      
+      // Use direct ElevenLabs calling
+      try {
+        const openingMessage = `Hi ${firstName || 'there'}! This is Sarah calling from ${campaign.name || 'Spark AI'}. I hope I'm not catching you at a bad time?`;
+        
+        const callData = {
+          campaignId: campaign.id,
+          leadId: lead.id,
+          firstPrompt: openingMessage,
+          systemPersona: campaign.systemPersona || "You are a professional sales representative. Be helpful, friendly, and focus on understanding the customer's needs.",
+          leadName: firstName || 'there',
+          selectedVoice: campaign.selectedVoice || '21m00Tcm4TlvDq8ikWAM',
+          scriptType: campaign.scriptType || 'conversational',
+          scriptOpening: campaign.scriptOpening || openingMessage,
+          scriptSystem: campaign.systemPersona || "You are a professional sales representative.",
+          knowledgeBase: campaign.knowledgeBase || '',
+          aiConfig: campaign.aiConfig || {}
+        };
+
+        console.log('📤 Making direct ElevenLabs call...');
+        const elevenLabsResult = await intelligentCallService.makeElevenLabsCall(cleanPhone, campaign, lead, openingMessage);
+        
+        if (elevenLabsResult.success) {
+          // Update call log with ElevenLabs call ID
+          await callLog.update({
+            elevenLabsCallId: elevenLabsResult.callId,
+            status: 'initiated',
+            provider: 'elevenlabs'
+          });
+
+          return res.json({
+            success: true,
+            message: 'Direct ElevenLabs call initiated successfully',
+            callId: elevenLabsResult.callId,
+            callLogId: callLog.id,
+            status: 'initiated',
+            provider: 'elevenlabs',
+            features: ['neural-voice', 'conversational-ai', 'direct-calling']
+          });
+        } else {
+          console.log('⚠️ Direct ElevenLabs call failed, falling back to Twilio + TTS');
+        }
+      } catch (error) {
+        console.error('❌ Direct ElevenLabs call error:', error);
+        console.log('⚠️ Falling back to Twilio + ElevenLabs TTS');
+      }
+    }
+
+    // Use Twilio with ElevenLabs TTS integration (fallback or primary method)
     console.log('🚀 USING TWILIO + ELEVENLABS TTS INTEGRATION');
     console.log('🎯 This approach combines Twilio reliability with ElevenLabs neural voices');
+    console.log('🎤 TTS will be generated dynamically using ElevenLabs API');
     
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
     const secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
@@ -486,15 +543,34 @@ router.post('/make-outbound-call', requireAuth, async (req, res) => {
       return res.status(500).json({ error: `Twilio error: ${twilioError.message}` });
     }
 
-    res.json({
-      success: true,
-      message: 'Enhanced AI call initiated successfully with ElevenLabs + Twilio integration',
-      callSid: call.sid,
-      callLogId: callLog.id,
-      status: 'initiated',
-      provider: 'twilio-elevenlabs',
-      features: ['neural-voice', 'speech-recognition', 'conversational-ai', 'localtunnel-webhooks']
-    });
+    // Use the unified calling service instead of the complex logic above
+    console.log('🚀 USING UNIFIED CALLING SERVICE');
+    console.log('🎯 Both ElevenLabs & Twilio working together seamlessly');
+
+    const result = await unifiedCallingService.makeUnifiedCall(cleanPhone, campaign, lead);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        callId: result.callId,
+        callLogId: result.callLogId,
+        status: result.status,
+        provider: result.provider,
+        method: result.method,
+        features: result.features,
+        serviceStatus: unifiedCallingService.getServiceStatus(),
+        unifiedIntegration: true
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+        message: result.message,
+        callLogId: result.callLogId,
+        serviceStatus: unifiedCallingService.getServiceStatus()
+      });
+    }
 
   } catch (error) {
     console.error('Make outbound call error:', error);

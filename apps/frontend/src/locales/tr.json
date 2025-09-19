@@ -346,52 +346,50 @@
     "callDescription": "AI ajanımız deneyimi göstermek için 2-3 dakika içinde sizi arayacak"
   },
   "pricing": {
-    "title": "Basit, Şeffaf Fiyatlandırma",
-    "subtitle": "İş ihtiyaçlarınıza uygun planı seçin. Tüm planlar 14 günlük ücretsiz deneme içerir.",
+    "title": "Ses AI Çıkış Ajanı - Fiyatlandırma",
+    "subtitle": "Gizli maliyet olmadan şeffaf fiyatlandırma. İhtiyaçlarınıza uygun destek paketini seçin.",
     "mostPopular": "En Popüler",
-    "starter": {
-      "name": "Başlangıç",
-      "price": "$99",
+    "setupFee": {
+      "title": "Tek Seferlik Kurulum Ücreti",
+      "price": "AED 10,000",
+      "description": "Ajan başına kurulum ve yapılandırma"
+    },
+    "aiUsage": {
+      "title": "AI Kullanım Ücretleri",
+      "price": "AED 0.51 - 0.66",
+      "period": "/dakika",
+      "description": "Tam saniyeye kadar faturalandırılır (ses üretimi, gerçek zamanlı transkripsiyon ve LLM işleme dahil)"
+    },
+    "essential": {
+      "name": "Temel Destek",
+      "price": "AED 1,500",
       "period": "/ay",
-      "description": "AI arama ile başlayan küçük ekipler için mükemmel",
+      "description": "AI arama ile başlayan işletmeler için mükemmel",
       "features": [
-        "Ayda 100 AI araması",
-        "5 ses seçeneği",
-        "Temel analitik",
-        "E-posta desteği",
-        "2 ekip üyesi"
+        "7/24 çalışma süresi izleme ve olay uyarıları",
+        "Ayda 4 saate kadar akış ayarlaması veya komut değişikliği",
+        "Kullanılmayan süre 60 gün boyunca devredilir",
+        "Eylem odaklı içgörülerle aylık performans raporu",
+        "Bir sonraki iş günü SLA ile e-posta desteği"
       ]
     },
-    "professional": {
-      "name": "Profesyonel",
-      "price": "$299",
+    "premium": {
+      "name": "Premium Destek",
+      "price": "AED 3,000",
       "period": "/ay",
-      "description": "Gelişmiş ihtiyaçları olan büyüyen işletmeler için ideal",
+      "description": "Gelişmiş optimizasyon ve öncelikli destek gerektiren işletmeler için",
       "features": [
-        "Ayda 1.000 AI araması",
-        "25 ses seçeneği",
-        "Gelişmiş analitik",
-        "Öncelikli destek",
-        "10 ekip üyesi",
-        "Özel ses klonlama",
-        "Çok dilli destek"
+        "Temel paketteki her şey artı:",
+        "Ayda 10 saate kadar komut/akış optimizasyonu",
+        "Metrikleri ve yol haritasını gözden geçirmek için strateji oturumu",
+        "Aynı iş günü yanıtlarla öncelikli destek kuyruğu",
+        "Düşük maliyetli ses modellerinin erken erişim testi",
+        "Paket değişiklikleri için 30 günlük bildirim"
       ]
     },
-    "enterprise": {
-      "name": "Kurumsal",
-      "price": "$999",
-      "period": "/ay",
-      "description": "Sınırsız ölçeklendirme ihtiyaçları olan büyük organizasyonlar için",
-      "features": [
-        "Sınırsız AI araması",
-        "Tüm ses seçenekleri",
-        "Özel entegrasyonlar",
-        "Özel destek",
-        "Sınırsız ekip üyesi",
-        "Gelişmiş AI eğitimi",
-        "Beyaz etiket çözümü",
-        "API erişimi"
-      ]
+    "notes": {
+      "vat": "UAE %5 KDV uygun yerlerde geçerlidir",
+      "optimization": "Ajanınızı daha büyük ölçekli modellerle yükseltir ve tasarrufları aktarırız - kilitli ölçülü oranlar yok"
     }
   },
   "testimonials": {

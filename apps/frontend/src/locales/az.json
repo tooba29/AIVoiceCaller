@@ -584,8 +584,51 @@
     "subtitle": "AI Satış Zəng Ajanından istifadə edən minlərlə satış komandasına qoşulun"
   },
   "pricing": {
-    "title": "Hər İstifadəçi üçün Sadə, Şəffaf Qiymətləndirmə",
-    "subtitle": "Hər hansı bir gizli xərc və ya uzun müddətli müqavilələr olmadan başlayın"
+    "title": "Səs AI Çıxış Agentı - Qiymətləndirmə",
+    "subtitle": "Gizli xərclər olmadan şəffaf qiymətləndirmə. Ehtiyaclarınıza uyğun dəstək paketini seçin.",
+    "mostPopular": "Ən Populyar",
+    "setupFee": {
+      "title": "Bir Dəfəlik Quraşdırma Haqqı",
+      "price": "AED 10,000",
+      "description": "Agent başına quraşdırma və konfiqurasiya"
+    },
+    "aiUsage": {
+      "title": "AI İstifadə Haqları",
+      "price": "AED 0.51 - 0.66",
+      "period": "/dəqiqə",
+      "description": "Dəqiq saniyəyə qədər hesablanır (səs yaradılması, real vaxt transkripsiyası və LLM emalı daxildir)"
+    },
+    "essential": {
+      "name": "Əsas Dəstək",
+      "price": "AED 1,500",
+      "period": "/ay",
+      "description": "AI zənglə başlayan bizneslər üçün mükəmməl",
+      "features": [
+        "7/24 iş vaxtı monitorinqi və hadisə xəbərdarlıqları",
+        "Ayda 4 saata qədər axın düzəlişləri və ya prompt dəyişiklikləri",
+        "İstifadə olunmamış vaxt 60 gün ərzində köçürülür",
+        "Fəaliyyət məqsədli məlumatlarla aylıq performans hesabatı",
+        "Növbəti iş günü SLA ilə e-poçt dəstəyi"
+      ]
+    },
+    "premium": {
+      "name": "Premium Dəstək",
+      "price": "AED 3,000",
+      "period": "/ay",
+      "description": "Təkmilləşdirilmiş optimallaşdırma və prioritet dəstək tələb edən bizneslər üçün",
+      "features": [
+        "Əsas paketdəki hər şey üstəgəl:",
+        "Ayda 10 saata qədər prompt/axın optimallaşdırması",
+        "Metrikaları və yol xəritəsini nəzərdən keçirmək üçün strategiya sessiyası",
+        "Eyni iş günü cavablarla prioritet dəstək növbəsi",
+        "Aşağı maliyyətli səs modellərinin erkən giriş testi",
+        "Paket dəyişiklikləri üçün 30 günlük bildiriş"
+      ]
+    },
+    "notes": {
+      "vat": "BƏƏ 5% ƏDV müvafiq yerlərdə tətbiq olunur",
+      "optimization": "Agentınızı daha böyük miqyaslı modellərlə yüksəldir və qənaətləri ötürürük - kilidli ölçülü tariflər yoxdur"
+    }
   },
   "stats": {
     "activeCampaigns": "Aktiv Kampaniyalar",
